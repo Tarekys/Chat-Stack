@@ -1,0 +1,25 @@
+import sys
+import os
+# Add src to path for absolute imports to run the server
+sys.path.insert(0, os.path.dirname(__file__))
+
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
+from db.main import init_db
+from routers import base_api
+
+@asynccontextmanager
+async def life_span(app: FastAPI): # lifespan must have async function
+    print("server is starting...")
+    await init_db()
+    yield
+    print("server is shutting down...")
+
+app = FastAPI(
+    title= "Chat App",
+    description= "A chat application with memory management",
+    version= "1.0",
+    lifespan= life_span
+)
+
+app.include_router(base_api.base_router)
