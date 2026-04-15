@@ -1,26 +1,23 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
-from .enums.role_enum import MessageRole
+from typing import Dict, Any
 
 class MessageBase(BaseModel):
-    content: str
-    role: MessageRole
+    content: Dict[str, Any]
 
-class MessageCreate(MessageBase):
+class MessageCreate(BaseModel):
     conversation_id: int
-    role: MessageRole
+    user_content: str
+
 
 class MessageRead(MessageBase):
     id: int
     conversation_id: int
     created_at: datetime
-    is_deleted: bool
 
     class Config:
         from_attributes = True
+    
 
-class MessageUpdate(BaseModel):
-    content: Optional[str] = None
-    role: Optional[str] = None
-    is_deleted: Optional[bool] = None
+class MessageResponse(BaseModel):
+    message: MessageRead

@@ -1,39 +1,34 @@
 from sqlmodel import SQLModel, Field, Column, Relationship
 from datetime import datetime
-from typing import Optional
-import uuid
+from typing import Optional, TYPE_CHECKING, Dict, Any
 import sqlalchemy.dialects.postgresql as pg
-from sqlalchemy import Enum, ForeignKey
+from sqlalchemy import ForeignKey
+
+
+if TYPE_CHECKING:
+    from .conversations import Conversation
+    from .msg_metadata import MessageMetadata
 
 class Message(SQLModel, table=True):
     __tablename__ = "messages"
 
-    id: uuid.UUID = Field(
-        sa_column= Column(pg.UUID(as_uuid=True), nullable=False, primary_key=True),
-        default= uuid.uuid4
+    id: int = Field(sa_column= Column(pg.INTEGER, primary_key=True, autoincrement=True, index=True))
+
+    conversation_id: int = Field(
+        sa_column= Column(pg.INTEGER, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
     )
 
-    conversation_id: uuid.UUID = Field(
-        sa_column= Column(pg.UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
-    )
-    role: str = Field(
-        sa_column= Column(Enum("user", "assistant", "system", name= "message_role")),
-        default= "user"
-    )
-
-    content: str = Field(default=None)
-    is_deleted: bool = Field(default=False)
-
-    created_at: datetime = Field(Column(pg.TIMESTAMP, default=datetime.now))
+    content: Dict[str, Any] = Field(sa_column= Column(pg.JSONB), default={})
+    created_at: datetime = Field(sa_column= Column(pg.TIMESTAMP, default=datetime.now))
 
     # Many-to-One: Message -> Conversation
     conversation: Optional["Conversation"] = Relationship(back_populates="messages")
 
     # One-to-One: Message -> Metadata
-    message_metadata: Optional["MessageMetadata"] = Relationship(
+    msg_metadata: Optional["MessageMetadata"] = Relationship(
         back_populates="message",
         sa_relationship_kwargs={"cascade": "all, delete-orphan", "uselist": False}
     )
 
     def __repr__(self):
-        return f"<Message(id={self.id}, role={self.role})>"
+        return f"<Message(id={self.id}, interaction={self.content})>"
