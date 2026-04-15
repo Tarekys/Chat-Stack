@@ -1,24 +1,30 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 from typing import Optional
 import uuid
 
 # User Base Schema/ common fields for all user schemas
 class UserBase(BaseModel):
-    email: EmailStr
+    username: str = Field(..., min_length=3)
+    email: EmailStr = Field(..., min_length=3)
+    fullname: str = Field(..., min_length=3)
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(..., min_length=8)
 
 class UserRead(UserBase):
     id: uuid.UUID
-    is_active: bool
+    is_verified: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
 
 class UserUpdate(BaseModel):
-    email: Optional[EmailStr] = None
-    hash_password: Optional[str] = None
-    is_active: Optional[bool] = None
+    username:  Optional[str]      = None
+    email:     Optional[EmailStr] = None
+    password:  Optional[str]      = None
+    is_verified: Optional[bool]     = False
+
+class UserResponse(BaseModel):
+    message: str
