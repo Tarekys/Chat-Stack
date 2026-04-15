@@ -15,6 +15,7 @@ class UserCreate(UserBase):
 class UserRead(UserBase):
     id: uuid.UUID
     is_verified: bool
+    is_deleted: bool
     created_at: datetime
 
     class Config:

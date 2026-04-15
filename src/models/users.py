@@ -20,6 +20,7 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, nullable=False)
     hash_password: str = Field(nullable=False, exclude=True)
     is_verified: bool = Field(default=False)
+    is_deleted: bool = Field(default=False)
 
 
     created_at: datetime = Field(sa_column= Column(pg.TIMESTAMP, default=datetime.now))

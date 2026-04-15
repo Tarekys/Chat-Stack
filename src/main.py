@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from db.main import init_db
 from routers import (
     base_api,
-    conversions_api,
+    conversations_api,
     users_api
 )
 
@@ -28,4 +28,4 @@ app = FastAPI(
 
 app.include_router(base_api.base_router)
 app.include_router(users_api.user_router)
-app.include_router(conversions_api.conv_router)
+app.include_router(conversations_api.conv_router)

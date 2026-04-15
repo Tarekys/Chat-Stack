@@ -9,13 +9,13 @@ from helpers.auth import hash_password
 class UserCtrl:
     async def get_all_users(self, session: AsyncSession):
 
-        stat = select(User).order_by(desc(User.created_at))
+        stat = select(User).where(User.is_deleted == False).order_by(desc(User.created_at))
         result = await session.exec(stat)
         return result.all()
 
     async def get_user(self, email: str, session: AsyncSession):
 
-        stat = select(User).where(User.email == email)
+        stat = select(User).where(User.email == email, User.is_deleted == False)
         result = await session.exec(stat)
         user = result.first()
         return user
@@ -66,7 +66,8 @@ class UserCtrl:
         user_delete = await self.get_user(email, session)
 
         if user_delete:
-            await session.delete(user_delete)
+            user_delete.is_deleted = True
+            session.add(user_delete)
             await session.commit()
             return {"message": "User deleted successfully"}
         else:
