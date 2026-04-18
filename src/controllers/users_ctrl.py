@@ -4,7 +4,7 @@ from sqlmodel import select, desc
 
 from models.users import User
 from schemas.users_schema import UserCreate, UserUpdate
-from helpers.auth import hash_password
+from utils.auth import hash_password
 
 class UserCtrl:
     async def get_all_users(self, session: AsyncSession):

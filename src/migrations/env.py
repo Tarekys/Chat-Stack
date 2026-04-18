@@ -9,7 +9,7 @@ from alembic import context
 
 from sqlmodel import SQLModel
 from models import *
-from helpers.config import get_settings
+from utils.config import get_settings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

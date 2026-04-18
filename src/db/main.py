@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import create_engine, SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from helpers.config import get_settings
+from utils.config import get_settings
 
 # Add parent (src) to path for absolute imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))

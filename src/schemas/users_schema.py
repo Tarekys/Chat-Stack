@@ -29,3 +29,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(BaseModel):
     message: str
+
+class UserLogin(BaseModel):
+    email: EmailStr = Field(..., min_length=3)
+    password: str = Field(..., min_length=8)
