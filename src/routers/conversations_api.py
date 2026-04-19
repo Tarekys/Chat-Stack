@@ -10,7 +10,7 @@ from schemas.conversations_schema import (
     ConversationRead
 )
 from schemas.users_schema import UserResponse
-from utils.dependencies import AcessTokenBearer
+from utils.dependencies import AccessTokenBearer
 
 conv_router = APIRouter(
      prefix="/api/conversations",
@@ -18,7 +18,7 @@ conv_router = APIRouter(
 )
 
 conv_ctrl = ConversationCtrl()
-access_token_bearer = AcessTokenBearer() # protect endpoints
+access_token_bearer = AccessTokenBearer() # protect endpoints
 
 @conv_router.get("/", response_model=List[ConversationRead])
 async def get_all_conversations(
