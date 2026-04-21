@@ -14,15 +14,21 @@ from schemas.users_schema import (
 from utils.auth import create_access_token, verify_password
 from utils.config import get_settings
 
-from utils.dependencies import AccessTokenBearer
+from utils.dependencies import (
+    AccessTokenBearer,
+    get_current_user,
+    RoleChecker
+)
 from db.redis import add_jti_to_blocklist
 
-user_router = APIRouter(
-    prefix="/api/users",
-    tags=["users"]
-)
+user_router = APIRouter(prefix="/api/users",tags=["users"])
+
+user_allowed = RoleChecker(["user"])
+admin_allowed = RoleChecker(["admin"])
+
 user_ctrl = UserCtrl()
 settings = get_settings()
+
 
 @user_router.post("/signup", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def create_user_account(
@@ -39,7 +45,6 @@ async def create_user_account(
 
     new_user = await user_ctrl.create_user(user_data, session)
     return new_user
-
 
 @user_router.post("/login", response_model=UserRead, status_code=status.HTTP_200_OK)
 async def login_user(
@@ -63,7 +68,8 @@ async def login_user(
             access_token = create_access_token(
                 user_data={
                     "email": user.email,
-                    "user_id": str(user.id)
+                    "user_id": str(user.id),
+                    "role": user.role
                 },
                 expiry = timedelta(seconds=settings.ACCESS_TOKEN_EXPIRY)
             )
@@ -84,7 +90,8 @@ async def login_user(
                     "refresh_token": refresh_token,
                     "user_data": {
                         "email": user.email,
-                        "user_id": str(user.id)
+                        "user_id": str(user.id),
+                        "role": user.role
                     }
                 }
            )
@@ -107,8 +114,20 @@ async def revoke_token(
         status_code=status.HTTP_200_OK
     )
 
+
+@user_router.get("/me")
+async def get_current_user(
+    current_user = Depends(get_current_user),
+    _: bool = Depends(user_allowed)
+    ):
+    return current_user
+
+
 @user_router.get("/all", response_model=List[UserRead])
-async def get_all_users(session: AsyncSession = Depends(get_session)):
+async def get_all_users(
+    session: AsyncSession = Depends(get_session),
+    _: bool = Depends(user_allowed)
+    ):
     
     users = await user_ctrl.get_all_users(session)
     return users
@@ -136,8 +155,8 @@ async def get_all_users(session: AsyncSession = Depends(get_session)):
 #     return updated_user
 
 
-# @user_router.delete("/delete/{email}", response_model=UserResponse)
-# async def delete_user(email: str, session: AsyncSession = Depends(get_session)):
+# # @user_router.delete("/delete/{email}", response_model=UserResponse)
+# # async def delete_user(email: str, session: AsyncSession = Depends(get_session)):
 
 #     result = await user_ctrl.delete_user(email, session)
 #     return result

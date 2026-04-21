@@ -17,6 +17,7 @@ class UserRead(UserBase):
     is_verified: bool
     is_deleted: bool
     created_at: datetime
+    role: str = Field(default="user")
 
     class Config:
         from_attributes = True
@@ -25,7 +26,7 @@ class UserUpdate(BaseModel):
     username:  Optional[str]      = None
     email:     Optional[EmailStr] = None
     password:  Optional[str]      = None
-    is_verified: Optional[bool]     = False
+    is_verified: Optional[bool]   = False
 
 class UserResponse(BaseModel):
     message: str

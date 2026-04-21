@@ -24,8 +24,7 @@ async def life_span(app: FastAPI): # lifespan must have async function
 app = FastAPI(
     title= "Chat App",
     description= "A chat application with memory management",
-    version= "1.0",
-    lifespan= life_span
+    version= "1.0"
 )
 
 app.include_router(base_api.base_router)

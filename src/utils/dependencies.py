@@ -1,9 +1,22 @@
 # for Autherzition we used dependency injection
-from fastapi import Request, HTTPException, status
+from fastapi import Request, HTTPException, status, Depends
 from fastapi.security import HTTPBearer
 from fastapi.security.http import HTTPAuthorizationCredentials
 from .auth import decode_token
 from db.redis import token_in_blocklist
+from db.main import get_session
+from controllers import users_ctrl
+from sqlmodel.ext.asyncio.session import AsyncSession
+from models import User
+from typing import Any, List
+
+ROLE_HIERARCHY = {
+    "superadmin": {"superadmin", "admin", "user"},
+    "admin":      {"admin", "user"},
+    "user":       {"user"}
+}
+
+user_ctrl = users_ctrl.UserCtrl()
 
 class TokenBearer(HTTPBearer):
      def __init__(self, auto_error = True):
@@ -62,3 +75,29 @@ class RefreshTokenBearer(TokenBearer):
                     status_code= status.HTTP_403_FORBIDDEN,
                     detail= "Please provide a refresh token"
                     )
+
+async def get_current_user(
+     token_data: dict = Depends(AccessTokenBearer()),
+     session: AsyncSession = Depends(get_session)
+     ) -> dict:
+
+     user_email = token_data['user']['email']
+     user = await user_ctrl.get_user(user_email, session)
+     return user
+
+class RoleChecker:
+     def __init__(self, allowed_roles: List[str]):
+          self.allowed_roles = set(allowed_roles)
+     
+     def __call__(self, current_user: User = Depends(get_current_user)) -> Any:
+          user_roles = ROLE_HIERARCHY.get(current_user.role, set())
+          if user_roles & self.allowed_roles:
+               return True
+
+          raise HTTPException(
+               status_code= status.HTTP_403_FORBIDDEN,
+               detail= "You are not allowed to perform this action"
+          )
+
+## Pre-defined role checkers
+# checker_any = RoleChecker(["user", "admin", "superadmin"])

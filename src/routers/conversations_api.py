@@ -11,21 +11,27 @@ from schemas.conversations_schema import (
 )
 from schemas.users_schema import UserResponse
 from utils.dependencies import AccessTokenBearer
+from utils.dependencies import RoleChecker
+
 
 conv_router = APIRouter(
      prefix="/api/conversations",
      tags=["Conversations"]
 )
 
+user_allowed = RoleChecker(["user"])
+admin_allowed = RoleChecker(["admin"])
+
 conv_ctrl = ConversationCtrl()
 access_token_bearer = AccessTokenBearer() # protect endpoints
+
 
 @conv_router.get("/", response_model=List[ConversationRead])
 async def get_all_conversations(
     session: AsyncSession = Depends(get_session),
-    token: str = Depends(access_token_bearer)
-):
-    print(token)
+    token: str = Depends(access_token_bearer),
+    _: bool = Depends(user_allowed)): # to protect endpoint
+
     conversations = await conv_ctrl.get_all_conversations(session)
     return conversations
 
@@ -34,8 +40,7 @@ async def get_all_conversations(
 async def get_conversation(
     conversation_id: int,
     session: AsyncSession = Depends(get_session),
-    token: str = Depends(access_token_bearer)
-):
+    token: str = Depends(access_token_bearer)):
 
     conversation = await conv_ctrl.get_conversation(conversation_id, session)
     return conversation
@@ -44,8 +49,7 @@ async def get_conversation(
 async def create_conversation(
     conversation_data: ConversationCreate, 
     session: AsyncSession = Depends(get_session),
-    token: str = Depends(access_token_bearer)
-):
+    token: str = Depends(access_token_bearer)):
     
     new_conv = await conv_ctrl.create_conversation(conversation_data, session)
     return new_conv
@@ -55,8 +59,8 @@ async def update_conversation(
     conversation_id: int, 
     conversation_data: ConversationUpdate, 
     session: AsyncSession = Depends(get_session),
-    token: str = Depends(access_token_bearer)
-):
+    token: str = Depends(access_token_bearer)):
+
     updated_conv = await conv_ctrl.update_conversation(conversation_id, conversation_data, session)
     return updated_conv
 
@@ -65,8 +69,8 @@ async def update_conversation(
 async def delete_conversation(
     conversation_id: int, 
     session: AsyncSession = Depends(get_session),
-    token: str = Depends(access_token_bearer)
-):
+    _: bool = Depends(admin_allowed),
+    token: str = Depends(access_token_bearer)):
     
     result = await conv_ctrl.delete_conversation(conversation_id, session)
     return result

@@ -16,6 +16,7 @@ class User(SQLModel, table=True):
     
     username: str = Field(unique=True, nullable=False)
     fullname: str = Field(nullable=False)
+    role: str = Field(default="user", nullable=False)
 
     email: str = Field(unique=True, nullable=False)
     hash_password: str = Field(nullable=False, exclude=True)

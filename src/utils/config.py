@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
 
+    # Admin
+    ADMIN_EMAIL: str = None
+
     class Config:
         env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 

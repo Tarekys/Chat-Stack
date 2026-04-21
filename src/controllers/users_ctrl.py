@@ -5,6 +5,9 @@ from sqlmodel import select, desc
 from models.users import User
 from schemas.users_schema import UserCreate, UserUpdate
 from utils.auth import hash_password
+from utils.config import get_settings
+
+settings = get_settings()
 
 class UserCtrl:
     async def get_all_users(self, session: AsyncSession):
@@ -28,10 +31,14 @@ class UserCtrl:
 
         user_dict = user_data.model_dump()
 
-        # نستخرج password قبل إنشاء الـ User لأن الحقل في الـ model هو hash_password
         plain_password = user_dict.pop("password")
         new_user = User(**user_dict)
         new_user.hash_password = hash_password(plain_password)
+
+        if new_user.email == settings.ADMIN_EMAIL:
+            new_user.role = "superadmin"
+        else:
+            new_user.role = "user"
 
         session.add(new_user)
         await session.commit()
