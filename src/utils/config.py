@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRY: int = 3600
     REFRESH_TOEKN_EXPIRY: int = 2
 
+    # Redis
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+
     class Config:
         env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
 

@@ -10,7 +10,8 @@ from routers import (
     base_api,
     conversations_api,
     users_api,
-    messages_api
+    messages_api,
+    auth_api
 )
 
 @asynccontextmanager
@@ -28,6 +29,7 @@ app = FastAPI(
 )
 
 app.include_router(base_api.base_router)
+app.include_router(auth_api.auth_router)
 app.include_router(users_api.user_router)
 app.include_router(conversations_api.conv_router)
 app.include_router(messages_api.messages_router)

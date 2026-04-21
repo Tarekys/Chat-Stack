@@ -11,3 +11,4 @@ alembic==1.18.4
 passli==1.7.4
 bcrypt==5.0.0
 PyJWT==2.12.1
+redis==4.3.4

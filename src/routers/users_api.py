@@ -3,25 +3,26 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import List
-from datetime import timedelta, datetime
+from datetime import timedelta
 
 from db.main import get_session
 from controllers.users_ctrl import UserCtrl 
 from schemas.users_schema import (
     UserCreate, UserUpdate,
-    UserRead, UserResponse, UserLogin)
+    UserRead, UserLogin)
 
-from utils.auth import create_access_token, decode_token, verify_password
+from utils.auth import create_access_token, verify_password
 from utils.config import get_settings
-from utils.dependencies import RefreshTokenBearer, AccessTokenBearer
+
+from utils.dependencies import AccessTokenBearer
+from db.redis import add_jti_to_blocklist
 
 user_router = APIRouter(
     prefix="/api/users",
-    tags=["auth"]
+    tags=["users"]
 )
 user_ctrl = UserCtrl()
 settings = get_settings()
-
 
 @user_router.post("/signup", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def create_user_account(
@@ -93,35 +94,24 @@ async def login_user(
         detail="Invalid credentials, Email or password is incorrect"
     )
 
+@user_router.get("/logout", response_model=UserRead, status_code=status.HTTP_200_OK)
+async def revoke_token(
+    token_details: dict = Depends(AccessTokenBearer())
+    ):
+    jti = token_details["jti"]
+    await add_jti_to_blocklist(jti)
+    return JSONResponse(
+        content={
+            "message": "Token revoked successfully"
+        },
+        status_code=status.HTTP_200_OK
+    )
 
 @user_router.get("/all", response_model=List[UserRead])
 async def get_all_users(session: AsyncSession = Depends(get_session)):
     
     users = await user_ctrl.get_all_users(session)
     return users
-
-@user_router.get("/refresh_token")
-async def new_access_token(
-    token_details: dict = Depends(RefreshTokenBearer())
-    ):
-
-    expiry_timestamp = token_details['exp']
-    if datetime.fromtimestamp(expiry_timestamp) > datetime.now():
-        new_access_token = create_access_token(
-            user_data = token_details['user']
-        )
-
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={
-                "message": "New access token generated",
-                "access_token": new_access_token
-            }
-        )
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Token has expired or is invalid"
-    )
 
 
 # @user_router.get("/{email}", response_model=UserRead)

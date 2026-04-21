@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  redis:
+    image: chatapp_redis
+    build:
+      context: ./docker/redis
+      dockerfile: Dockerfile
+    container_name: chatapp_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - chatapp_network
+
+volumes:
+  redis_data:
+
+
+networks:
+  chatapp_network:
+    driver: bridge

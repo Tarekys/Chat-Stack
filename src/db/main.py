@@ -15,8 +15,7 @@ settings = get_settings() # data from environment variables
 
 engine = AsyncEngine(
     create_engine(
-        url=settings.DATABASE_URL,
-        echo=True
+        url=settings.DATABASE_URL
     )
 )
 async def init_db():

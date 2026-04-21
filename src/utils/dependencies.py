@@ -3,6 +3,7 @@ from fastapi import Request, HTTPException, status
 from fastapi.security import HTTPBearer
 from fastapi.security.http import HTTPAuthorizationCredentials
 from .auth import decode_token
+from db.redis import token_in_blocklist
 
 class TokenBearer(HTTPBearer):
      def __init__(self, auto_error = True):
@@ -15,12 +16,17 @@ class TokenBearer(HTTPBearer):
 
           token_data = decode_token(token)
 
-          if not self.token_valid:
+          if not self.token_valid(token):
                raise HTTPException(
                     status_code= status.HTTP_403_FORBIDDEN,
-                    detail= "Token is invalid or expired"
+                    detail= {"detail": "Token is invalid or expired", "resolution": "Please get a new token"}
                     )
-          
+          if await token_in_blocklist(jti = token_data['jti']):
+               raise HTTPException(
+                    status_code= status.HTTP_403_FORBIDDEN,
+                    detail= {"detail": "Token is invalid or expired", "resolution": "Please get a new token"}
+                    )
+
           self.verify_token(token_data)
 
           # if we reach here, the token is valid and verified
