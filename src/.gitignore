@@ -202,18 +202,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Checkpoints
-../checkpoint1.py
-../checkpoint2.py
-../checkpoint3.py
-
-# Migration file
-../MIGRATION_README.md
-
-# Notebooks
-../Notebook.ipynb
-../*.ipynb
-
 # Test files
 TEST
 

@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from db.main import init_db
 from utils.errors import register_all_errors
+from utils.middleware import setup_middleware
 from routers import (
     base_api,
     conversations_api,
@@ -29,6 +30,8 @@ app = FastAPI(
 )
 
 register_all_errors(app)
+
+setup_middleware(app)
 
 app.include_router(base_api.base_router)
 app.include_router(auth_api.auth_router)
