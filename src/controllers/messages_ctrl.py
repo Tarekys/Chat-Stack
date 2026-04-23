@@ -6,6 +6,7 @@ from models.messages import Message
 from schemas.messages_schema import (
     MessageCreate
 )
+from utils.errors import MessageNotFound
 
 class MessageCtrl:
     async def get_messages_for_conversation(self, conversation_id: int, session: AsyncSession):
@@ -21,10 +22,8 @@ class MessageCtrl:
         message = result.first()
 
         if not message:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Message interaction with ID {message_id} not found"
-            )
+            raise MessageNotFound()
+            
         return message
 
     async def create_message(self, message_data: MessageCreate, session: AsyncSession):

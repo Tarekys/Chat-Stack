@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import List
 
@@ -10,8 +10,9 @@ from schemas.conversations_schema import (
     ConversationRead
 )
 from schemas.users_schema import UserResponse
-from utils.dependencies import AccessTokenBearer
-from utils.dependencies import RoleChecker
+from utils.auth.dependencies import AccessTokenBearer
+from utils.auth.dependencies import RoleChecker
+from utils.errors import ConversationNotFound
 
 
 conv_router = APIRouter(
@@ -43,6 +44,9 @@ async def get_conversation(
     token: str = Depends(access_token_bearer)):
 
     conversation = await conv_ctrl.get_conversation(conversation_id, session)
+    if not conversation:
+        raise ConversationNotFound()
+
     return conversation
 
 @conv_router.post("/", response_model=ConversationRead, status_code=status.HTTP_201_CREATED)

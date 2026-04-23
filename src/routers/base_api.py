@@ -10,6 +10,7 @@ async def welcome():
         "name": "Chat App",
         "version": "1.0",
     }
+
     return {"Welcome": "Chat App API with Memory Management",
             "your application information are" : app_info
             }

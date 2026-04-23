@@ -9,6 +9,9 @@ from controllers import users_ctrl
 from sqlmodel.ext.asyncio.session import AsyncSession
 from models import User
 from typing import Any, List
+from ..errors import (
+     InvalidToken, RefreshTokenRequired, NoPermission,
+     AccessTokenRequired)
 
 ROLE_HIERARCHY = {
     "superadmin": {"superadmin", "admin", "user"},
@@ -30,15 +33,10 @@ class TokenBearer(HTTPBearer):
           token_data = decode_token(token)
 
           if not self.token_valid(token):
-               raise HTTPException(
-                    status_code= status.HTTP_403_FORBIDDEN,
-                    detail= {"detail": "Token is invalid or expired", "resolution": "Please get a new token"}
-                    )
+               raise InvalidToken()
+
           if await token_in_blocklist(jti = token_data['jti']):
-               raise HTTPException(
-                    status_code= status.HTTP_403_FORBIDDEN,
-                    detail= {"detail": "Token is invalid or expired", "resolution": "Please get a new token"}
-                    )
+               raise InvalidToken()
 
           self.verify_token(token_data)
 
@@ -62,19 +60,13 @@ class AccessTokenBearer(TokenBearer):
 
      def verify_token(self, token_data: dict) -> None:
           if token_data and token_data['refresh']:
-               raise HTTPException(
-                    status_code= status.HTTP_403_FORBIDDEN,
-                    detail= "Please provide an access token"
-                    )
+               raise AccessTokenRequired()
 
 class RefreshTokenBearer(TokenBearer):
 
      def verify_token(self, token_data: dict) -> None:
           if token_data and not token_data['refresh']:
-               raise HTTPException(
-                    status_code= status.HTTP_403_FORBIDDEN,
-                    detail= "Please provide a refresh token"
-                    )
+               raise RefreshTokenRequired()
 
 async def get_current_user(
      token_data: dict = Depends(AccessTokenBearer()),
@@ -94,10 +86,7 @@ class RoleChecker:
           if user_roles & self.allowed_roles:
                return True
 
-          raise HTTPException(
-               status_code= status.HTTP_403_FORBIDDEN,
-               detail= "You are not allowed to perform this action"
-          )
-
+          raise NoPermission()
+          
 ## Pre-defined role checkers
 # checker_any = RoleChecker(["user", "admin", "superadmin"])

@@ -4,17 +4,17 @@ from fastapi.responses import JSONResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import List
 from datetime import timedelta
-
 from db.main import get_session
 from controllers.users_ctrl import UserCtrl 
 from schemas.users_schema import (
     UserCreate, UserUpdate,
     UserRead, UserLogin)
 
-from utils.auth import create_access_token, verify_password
+from utils.auth.auth import create_access_token, verify_password
 from utils.config import get_settings
+from utils.errors import UserNotFound, UserAlreadyExists, InvalidCredentials
 
-from utils.dependencies import (
+from utils.auth.dependencies import (
     AccessTokenBearer,
     get_current_user,
     RoleChecker
@@ -38,10 +38,7 @@ async def create_user_account(
     email = user_data.email
     user_exists = await user_ctrl.user_exists(email, session)
     if user_exists:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"User with email '{email}' already exists"
-        )
+        raise UserAlreadyExists()
 
     new_user = await user_ctrl.create_user(user_data, session)
     return new_user
@@ -57,10 +54,8 @@ async def login_user(
     user = await user_ctrl.get_user(email, session)
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with email '{email}' not found"
-        )
+        raise UserNotFound()
+
     if user:
         password_vaild = verify_password(password, user.hash_password)
 
@@ -96,10 +91,7 @@ async def login_user(
                 }
            )
 
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid credentials, Email or password is incorrect"
-    )
+    raise InvalidCredentials()
 
 @user_router.get("/logout", response_model=UserRead, status_code=status.HTTP_200_OK)
 async def revoke_token(
@@ -138,10 +130,7 @@ async def get_all_users(
     
 #     user = await user_ctrl.get_user(email, session)
 #     if not user:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail=f"User with email '{email}' not found"
-#         )
+#         raise UserNotFound()
 #     return user
 
 

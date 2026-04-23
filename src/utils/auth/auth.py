@@ -2,7 +2,7 @@ import bcrypt
 from datetime import timedelta, datetime
 import jwt
 import uuid
-from .config import get_settings
+from ..config import get_settings
 import logging
 
 settings = get_settings()

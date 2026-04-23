@@ -1,5 +1,4 @@
 from sqlmodel.ext.asyncio.session import AsyncSession
-from fastapi import HTTPException, status
 from sqlmodel import select, desc
 
 from models.conversations import Conversation
@@ -7,6 +6,7 @@ from schemas.conversations_schema import (
     ConversationCreate,
     ConversationUpdate
 )
+from utils.errors import ConversationNotFound
 
 class ConversationCtrl:
     async def get_all_conversations(self, session: AsyncSession):
@@ -22,10 +22,7 @@ class ConversationCtrl:
         conv = result.first()
 
         if not conv:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, 
-                detail=f"Conversation with ID {conversation_id} not found"
-            )
+            raise ConversationNotFound()
         return conv
 
     async def create_conversation(self, conversation_data: ConversationCreate, session: AsyncSession):
@@ -41,8 +38,10 @@ class ConversationCtrl:
     async def update_conversation(self, conversation_id: int, conversation_data: ConversationUpdate, session: AsyncSession):
         
         conv_update = await self.get_conversation(conversation_id, session)
-        update_dict = conversation_data.model_dump(exclude_unset=True)
+        if not conv_update:
+            raise ConversationNotFound()
 
+        update_dict = conversation_data.model_dump(exclude_unset=True)
         for key, value in update_dict.items():
             setattr(conv_update, key, value)
         
@@ -54,7 +53,9 @@ class ConversationCtrl:
     async def delete_conversation(self, conversation_id: int, session: AsyncSession):
         
         conv_delete = await self.get_conversation(conversation_id, session)
-        
+        if not conv_delete:
+            raise ConversationNotFound()
+
         conv_delete.is_deleted = True
         session.add(conv_delete)
         await session.commit()

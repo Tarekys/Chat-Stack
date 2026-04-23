@@ -1,11 +1,11 @@
 from sqlmodel.ext.asyncio.session import AsyncSession
-from fastapi import HTTPException, status
 from sqlmodel import select, desc
 
 from models.users import User
 from schemas.users_schema import UserCreate, UserUpdate
-from utils.auth import hash_password
+from utils.auth.auth import hash_password
 from utils.config import get_settings
+from utils.errors import UserNotFound
 
 settings = get_settings()
 
@@ -50,10 +50,7 @@ class UserCtrl:
         user_update = await self.get_user(email, session)
 
         if not user_update:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User with email '{email}' not found"
-            )
+            raise UserNotFound()
 
         user_update_dict = user_data.model_dump(exclude_unset=True)
 
@@ -78,4 +75,4 @@ class UserCtrl:
             await session.commit()
             return {"message": "User deleted successfully"}
         else:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+            raise UserNotFound()

@@ -1,14 +1,15 @@
 from fastapi import APIRouter, Depends, status
-from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from datetime import datetime
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from utils.auth import create_access_token
+from utils.auth.auth import create_access_token
 from utils.config import get_settings
-from utils.dependencies import RefreshTokenBearer,RoleChecker
+from utils.auth.dependencies import RefreshTokenBearer,RoleChecker
 from controllers.users_ctrl import UserCtrl
 from db.main import get_session 
+from utils.errors import UserNotFound, InvalidToken, MustRoles, CannotModifySuperadmin
+
 
 auth_router = APIRouter(prefix="/api/auth",tags=["auth"])
 
@@ -35,10 +36,7 @@ async def new_access_token(
                 "access_token": new_access_token
             }
         )
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail="Token has expired or is invalid"
-    )
+    raise InvalidToken()
 
 @auth_router.post("/update_role", status_code=status.HTTP_200_OK)
 async def update_user_role(
@@ -48,21 +46,15 @@ async def update_user_role(
     _: bool = Depends(role_allowed)):
 
     if role not in ("user", "admin"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Role must be 'user' or 'admin'"
-        )
+        raise MustRoles()
+
     user = await user_ctrl.get_user(email, session)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with email '{email}' not found"
-        )
+        raise UserNotFound()
+
     if user.role == "superadmin":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot modify superadmin role"
-        )
+        raise CannotModifySuperadmin()
+
     user.role = role
     session.add(user)
     await session.commit()
