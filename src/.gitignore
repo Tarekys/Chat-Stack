@@ -216,3 +216,5 @@ __marimo__/
 
 # Test files
 TEST
+
+alembic.ini
