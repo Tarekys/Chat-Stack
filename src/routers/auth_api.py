@@ -1,3 +1,4 @@
+import email
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from datetime import datetime
@@ -8,15 +9,63 @@ from utils.config import get_settings
 from utils.auth.dependencies import RefreshTokenBearer,RoleChecker
 from controllers.users_ctrl import UserCtrl
 from db.main import get_session 
-from utils.errors import UserNotFound, InvalidToken, MustRoles, CannotModifySuperadmin
-
+from utils.errors import(
+    UserNotFound, InvalidToken,
+    MustRoles, CannotModifySuperadmin)
+from utils.auth.mail import send_email
+from schemas.users_schema import EmailData
+from utils.auth.auth import decode_url_token
 
 auth_router = APIRouter(prefix="/api/auth",tags=["auth"])
 
-role_allowed = RoleChecker(["superadmin"])
+superadmin_allowed = RoleChecker(["superadmin"])
 user_ctrl = UserCtrl()
 settings = get_settings()
 
+
+@auth_router.post("/test-send-mail")
+async def send_test_email(mail_data: EmailData):
+    emails = mail_data.addresses
+    subject = "Verification Email!"
+    html_content = """
+    <html>
+        <body>
+            <p>Hi there!</p>
+            <p>Welcome to our application!</p>
+        </body>
+    </html>
+    """
+
+    await send_email(recipients=emails, subject=subject, body=html_content)
+    return JSONResponse(
+        content={"message": "Email sent successfully"},
+        status_code=status.HTTP_200_OK
+    )
+
+@auth_router.get("/verify_email/{token}")
+async def verify_email(
+    token: str,
+    session: AsyncSession = Depends(get_session)):
+
+    # Verify the token/ decode it
+    token_data = decode_url_token(token)
+    user_email = token_data.get('email')
+    
+    if user_email:
+        user = await user_ctrl.get_user(user_email, session)
+        
+        if not user:
+            raise UserNotFound()
+
+        await user_ctrl.update_user_verify(user, {"is_verified": True}, session)
+        return JSONResponse(
+            content={"message": "Account verified successfully"},
+            status_code=status.HTTP_200_OK
+        )
+    return JSONResponse(
+        content={"message": "Error occurred while verifying account"},
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+    )
 
 @auth_router.get("/refresh_token")
 async def new_access_token(
@@ -43,7 +92,7 @@ async def update_user_role(
     email: str,
     role: str,
     session: AsyncSession = Depends(get_session),
-    _: bool = Depends(role_allowed)):
+    _: bool = Depends(superadmin_allowed)):
 
     if role not in ("user", "admin"):
         raise MustRoles()

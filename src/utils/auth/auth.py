@@ -4,6 +4,8 @@ import jwt
 import uuid
 from ..config import get_settings
 import logging
+from itsdangerous import URLSafeTimedSerializer
+from ..errors import InvalidToken
 
 settings = get_settings()
 
@@ -46,4 +48,26 @@ def decode_token(token: str) -> dict | None:
 
     except jwt.PyJWTError as exc:
         logging.error(f"Token decoding failed: {exc}")
+        return None
+
+
+salt = "email-verification"
+serializer = URLSafeTimedSerializer(
+        secret_key = settings.JWT_SECRET_KEY,
+        salt = salt
+    )
+def generate_url_token(data:dict, salt:str = salt):
+    token = serializer.dumps(data, salt=salt)
+    return token
+
+def decode_url_token(token: str):
+    try:
+        token_data = serializer.loads(token)
+        if not token_data:
+            raise InvalidToken()
+
+        return token_data
+
+    except Exception as exc:
+        logging.error(f"Token verification failed: {exc}")
         return None

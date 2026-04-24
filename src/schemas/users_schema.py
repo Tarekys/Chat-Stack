@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 import uuid
 
 # User Base Schema/ common fields for all user schemas
@@ -34,3 +34,6 @@ class UserResponse(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr = Field(..., min_length=3)
     password: str = Field(..., min_length=8)
+
+class EmailData(BaseModel):
+    addresses: List[EmailStr]

@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, status
-from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import List
@@ -9,9 +8,10 @@ from controllers.users_ctrl import UserCtrl
 from schemas.users_schema import (
     UserCreate, UserUpdate,
     UserRead, UserLogin)
-
-from utils.auth.auth import create_access_token, verify_password
 from utils.config import get_settings
+
+from utils.auth.auth import create_access_token, verify_password, generate_url_token, decode_url_token
+from utils.auth.mail import send_email
 from utils.errors import UserNotFound, UserAlreadyExists, InvalidCredentials
 
 from utils.auth.dependencies import (
@@ -30,7 +30,7 @@ user_ctrl = UserCtrl()
 settings = get_settings()
 
 
-@user_router.post("/signup", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@user_router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def create_user_account(
     user_data: UserCreate,
     session: AsyncSession = Depends(get_session)):
@@ -39,9 +39,23 @@ async def create_user_account(
     user_exists = await user_ctrl.user_exists(email, session)
     if user_exists:
         raise UserAlreadyExists()
-
     new_user = await user_ctrl.create_user(user_data, session)
-    return new_user
+
+    # Verify email token usin SMTP Server
+    token_data = {"email":email}
+    token = generate_url_token(token_data)
+
+    verify_link = f"http://{settings.APP_DOMAIN}/api/auth/verify_email/{token}"
+    html_message = f"""
+    <h1>Verify Your Account</h1>
+    <p>Hello {new_user.username}, please verify your account to continue. Click <a href="{verify_link}">here</a> to verify your account.</p>
+    """
+    await send_email(recipients=[email], subject="Verify Your Account", body=html_message)
+
+    return {
+        "message": "Account Created Successfully. Please check your email to verify your account.",
+        "user": new_user,
+    }
 
 @user_router.post("/login", response_model=UserRead, status_code=status.HTTP_200_OK)
 async def login_user(
@@ -75,7 +89,7 @@ async def login_user(
                     "user_id": str(user.id)
                 },
                 refresh = True,
-                expiry = timedelta(days=settings.REFRESH_TOEKN_EXPIRY)
+                expiry = timedelta(days=settings.REFRESH_TOKEN_EXPIRY)
             )
 
             return JSONResponse(
@@ -118,7 +132,7 @@ async def get_current_user(
 @user_router.get("/all", response_model=List[UserRead])
 async def get_all_users(
     session: AsyncSession = Depends(get_session),
-    _: bool = Depends(user_allowed)
+    _: bool = Depends(admin_allowed)
     ):
     
     users = await user_ctrl.get_all_users(session)

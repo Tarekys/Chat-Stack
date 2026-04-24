@@ -45,6 +45,15 @@ class UserCtrl:
         await session.refresh(new_user)
         return new_user
 
+    async def update_user_verify(self, user: User, user_data: dict, session: AsyncSession):
+        for key, value in user_data.items():
+            setattr(user, key, value)
+
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return user
+
     async def update_user(self, email: str, user_data: UserUpdate, session: AsyncSession):
 
         user_update = await self.get_user(email, session)
