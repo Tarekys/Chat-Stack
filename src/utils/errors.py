@@ -27,6 +27,9 @@ class UserNotFound(Exception):
     """User has provided a token for a user that does not exist"""
     pass
 
+class AccountNotVerified(Exception):
+    """Account is not verified"""
+    pass
 #---------------------------------------------------------
 class MustRoles(Exception):
     """User must have one of the specified roles"""
@@ -50,6 +53,10 @@ class MessageNotFound(Exception):
 
 class ConversationNotFound(Exception):
     """User is trying to access a conversation that does not exist"""
+    pass
+
+class PasswordsDoNotMatch(Exception):
+    """Passwords do not match"""
     pass
 
 def create_error_response(status_code: int, detail: Any) -> Callable[[Request, Exception], JSONResponse]:
@@ -182,4 +189,25 @@ def register_all_errors(app: FastAPI):
                 "error_code": "internal_server_error",
             },
         ),
+    )
+    app.add_exception_handler(
+        AccountNotVerified,
+        create_error_response(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "message": "Account is not verified",
+                "error_code": "account_not_verified",
+                "resolution": "Please verify your account using the verification link sent to your email",
+            },
+        )
+    )
+    app.add_exception_handler(
+        PasswordsDoNotMatch,
+        create_error_response(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Passwords do not match",
+                "error_code": "passwords_do_not_match",
+            },
+        )
     )

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     # Admin
     ADMIN_EMAIL: str = None
+    ADMIN_USERNAME: str = None
 
     # Mail Service
     MAIL_USERNAME: str = None

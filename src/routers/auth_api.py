@@ -1,20 +1,20 @@
-import email
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
 from datetime import datetime
 from sqlmodel.ext.asyncio.session import AsyncSession
-
-from utils.auth.auth import create_access_token
-from utils.config import get_settings
-from utils.auth.dependencies import RefreshTokenBearer,RoleChecker
 from controllers.users_ctrl import UserCtrl
 from db.main import get_session 
+from schemas.users_schema import EmailData, ResetPassword, ResetPasswordConfirm
+
+from utils.config import get_settings
+from utils.auth.auth import create_access_token, hash_password
+from utils.auth.dependencies import RefreshTokenBearer,RoleChecker
 from utils.errors import(
-    UserNotFound, InvalidToken,
+    UserNotFound, InvalidToken, PasswordsDoNotMatch,
     MustRoles, CannotModifySuperadmin)
+
 from utils.auth.mail import send_email
-from schemas.users_schema import EmailData
-from utils.auth.auth import decode_url_token
+from utils.auth.auth import decode_url_token, generate_url_token
 
 auth_router = APIRouter(prefix="/api/auth",tags=["auth"])
 
@@ -90,6 +90,7 @@ async def new_access_token(
 @auth_router.post("/update_role", status_code=status.HTTP_200_OK)
 async def update_user_role(
     email: str,
+    username: str,
     role: str,
     session: AsyncSession = Depends(get_session),
     _: bool = Depends(superadmin_allowed)):
@@ -113,3 +114,68 @@ async def update_user_role(
         content={"message": f"User '{email}' role updated to '{role}'"},
         status_code=status.HTTP_200_OK
         )
+
+
+@auth_router.post("/reset_password")
+async def reset_password(
+    password_data: ResetPassword,
+    session: AsyncSession = Depends(get_session)):
+    """
+    1. User requests password reset / provide the email
+    2. Sends reset link to user's email
+    3. Updates password / password confirmation
+    """
+    email = password_data.email
+
+    user = await user_ctrl.get_user(email, session)
+    if not user:
+        raise UserNotFound()
+
+    token_data = {"email": email}
+    token = generate_url_token(token_data, salt="password-reset")
+    subject = "Password Reset Request"
+    html_message = f"""
+    <html>
+        <body>
+            <p>Hi there!</p>
+            <p>Please click the link below to reset your password:</p>
+            <p><a href="http://{settings.APP_DOMAIN}/api/auth/reset_password_confirm/{token}">Reset Password</a></p>
+        </body>
+    </html>
+    """
+
+    await send_email(recipients=[email], subject=subject, body=html_message)
+    return JSONResponse(
+        content={"message": "Please check your email to reset your password."},
+        status_code=status.HTTP_200_OK
+    )
+
+@auth_router.post("/reset_password_confirm/{token}")
+async def reset_account_password(
+    token: str,
+    password_data: ResetPasswordConfirm,
+    session: AsyncSession = Depends(get_session)):
+
+    new_password = password_data.new_password
+    confirm_password = password_data.confirm_new_password
+
+    if new_password != confirm_password:
+        raise PasswordsDoNotMatch()
+
+    token_data = decode_url_token(token, salt="password-reset")
+    email = token_data.get("email")
+    if not email:
+        raise UserNotFound()
+
+    user = await user_ctrl.get_user(email, session)
+    if not user:
+        raise UserNotFound()
+
+    # Update password
+    pwd_hash = hash_password(new_password)
+    await user_ctrl.update_user_verify(user, {"hash_password": pwd_hash}, session)
+
+    return JSONResponse(
+        content={"message": "Password reset successfully"},
+        status_code=status.HTTP_200_OK
+    )

@@ -11,13 +11,7 @@ from models import User
 from typing import Any, List
 from ..errors import (
      InvalidToken, RefreshTokenRequired, NoPermission,
-     AccessTokenRequired)
-
-ROLE_HIERARCHY = {
-    "superadmin": {"superadmin", "admin", "user"},
-    "admin":      {"admin", "user"},
-    "user":       {"user"}
-}
+     AccessTokenRequired, AccountNotVerified)
 
 user_ctrl = users_ctrl.UserCtrl()
 
@@ -77,11 +71,21 @@ async def get_current_user(
      user = await user_ctrl.get_user(user_email, session)
      return user
 
+
+ROLE_HIERARCHY = {
+    "superadmin": {"superadmin", "admin", "user"},
+    "admin":      {"admin", "user"},
+    "user":       {"user"}
+}
 class RoleChecker:
      def __init__(self, allowed_roles: List[str]):
           self.allowed_roles = set(allowed_roles)
      
      def __call__(self, current_user: User = Depends(get_current_user)) -> Any:
+
+          if not current_user.is_verified:
+               raise AccountNotVerified()
+
           user_roles = ROLE_HIERARCHY.get(current_user.role, set())
           if user_roles & self.allowed_roles:
                return True

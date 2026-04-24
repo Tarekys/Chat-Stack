@@ -4,7 +4,7 @@ services:
   redis:
     image: chatapp_redis
     build:
-      context: ./docker/redis
+      context: ./redis
       dockerfile: Dockerfile
     container_name: chatapp_redis
     ports:
@@ -17,7 +17,6 @@ services:
 
 volumes:
   redis_data:
-
 
 networks:
   chatapp_network:

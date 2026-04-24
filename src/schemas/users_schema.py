@@ -37,3 +37,10 @@ class UserLogin(BaseModel):
 
 class EmailData(BaseModel):
     addresses: List[EmailStr]
+
+class ResetPassword(BaseModel):
+    email: EmailStr = Field(..., min_length=3)
+
+class ResetPasswordConfirm(BaseModel):
+    new_password: str = Field(..., min_length=8)
+    confirm_new_password: str = Field(..., min_length=8)

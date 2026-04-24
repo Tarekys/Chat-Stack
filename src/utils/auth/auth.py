@@ -60,9 +60,9 @@ def generate_url_token(data:dict, salt:str = salt):
     token = serializer.dumps(data, salt=salt)
     return token
 
-def decode_url_token(token: str):
+def decode_url_token(token: str, salt: str = salt):
     try:
-        token_data = serializer.loads(token)
+        token_data = serializer.loads(token, salt=salt)
         if not token_data:
             raise InvalidToken()
 
@@ -70,4 +70,4 @@ def decode_url_token(token: str):
 
     except Exception as exc:
         logging.error(f"Token verification failed: {exc}")
-        return None
+        raise InvalidToken()

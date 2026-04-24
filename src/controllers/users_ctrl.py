@@ -35,7 +35,7 @@ class UserCtrl:
         new_user = User(**user_dict)
         new_user.hash_password = hash_password(plain_password)
 
-        if new_user.email == settings.ADMIN_EMAIL:
+        if new_user.email == settings.ADMIN_EMAIL and new_user.username == settings.ADMIN_USERNAME:
             new_user.role = "superadmin"
         else:
             new_user.role = "user"
