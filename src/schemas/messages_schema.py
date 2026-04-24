@@ -1,14 +1,14 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Dict, Any
+from .enums.role_enum import MessageRole
 
 class MessageBase(BaseModel):
-    content: Dict[str, Any]
+    role: MessageRole
+    content: str
 
 class MessageCreate(BaseModel):
     conversation_id: int
-    user_content: str
-
+    content: str
 
 class MessageRead(MessageBase):
     id: int
@@ -17,7 +17,6 @@ class MessageRead(MessageBase):
 
     class Config:
         from_attributes = True
-    
 
 class MessageResponse(BaseModel):
     message: MessageRead

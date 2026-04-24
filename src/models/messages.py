@@ -1,6 +1,6 @@
 from sqlmodel import SQLModel, Field, Column, Relationship
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING, Dict, Any
+from typing import Optional, TYPE_CHECKING
 import sqlalchemy.dialects.postgresql as pg
 from sqlalchemy import ForeignKey
 
@@ -17,8 +17,8 @@ class Message(SQLModel, table=True):
     conversation_id: int = Field(
         sa_column= Column(pg.INTEGER, ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False)
     )
-
-    content: Dict[str, Any] = Field(sa_column= Column(pg.JSONB), default={})
+    role: str = Field(sa_column= Column(pg.VARCHAR, nullable=False))
+    content: str = Field(sa_column= Column(pg.TEXT, nullable=False))
     created_at: datetime = Field(sa_column= Column(pg.TIMESTAMP, default=datetime.now))
 
     # Many-to-One: Message -> Conversation
@@ -31,4 +31,4 @@ class Message(SQLModel, table=True):
     )
 
     def __repr__(self):
-        return f"<Message(id={self.id}, interaction={self.content})>"
+        return f"<Message(id={self.id}, role={self.role})>"

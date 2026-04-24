@@ -20,7 +20,8 @@ messages_ctrl = MessageCtrl()
 async def send_message(
     message_data: MessageCreate, 
     session: AsyncSession = Depends(get_session)):
-
+    """user_content/assistant_content: str - The user's message content"""
+    
     new_interaction = await messages_ctrl.create_message(message_data, session)
     return new_interaction
 

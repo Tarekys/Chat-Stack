@@ -27,20 +27,26 @@ class MessageCtrl:
         return message
 
     async def create_message(self, message_data: MessageCreate, session: AsyncSession):
-          
-        # هنا نقوم ببناء كائن الـ JSON المطلوب
-        # تطبيق الاتصال بـ LLM API KEY
-        interaction_content = {
-            "user": message_data.user_content,
-            "assistant": f"I received your message: '{message_data.user_content}'"
-        }
-        
-        new_message = Message(
-            conversation_id=message_data.conversation_id,
-            content=interaction_content
-        )
 
-        session.add(new_message)
+        # 1. Save user message
+        user_msg = Message(
+            conversation_id=message_data.conversation_id,
+            role="user",
+            content=message_data.content
+        )
+        session.add(user_msg)
+
+        # TODO: Call LLM API here instead of mock response
+        assistant_content = f"I received your message: '{message_data.content}'"
+
+        # 2. Save assistant response
+        assistant_msg = Message(
+            conversation_id=message_data.conversation_id,
+            role="assistant",
+            content=assistant_content
+        )
+        session.add(assistant_msg)
+
         await session.commit()
-        await session.refresh(new_message)
-        return new_message
+        await session.refresh(assistant_msg)
+        return assistant_msg
