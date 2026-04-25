@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional, TYPE_CHECKING
 import uuid
 import sqlalchemy.dialects.postgresql as pg
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, BigInteger
 
 if TYPE_CHECKING:
     from .users import User
@@ -19,6 +19,12 @@ class Conversation(SQLModel, table=True):
     )
     title: str = Field(default=None)
     is_deleted: bool = Field(default=False)
+    summary: Optional[str] = Field(default=None, sa_column=Column(pg.TEXT, nullable=True))
+
+    # Token usage tracking
+    prompt_tokens: int = Field(default=0, sa_column=Column(BigInteger, default=0, nullable=False))
+    completion_tokens: int = Field(default=0, sa_column=Column(BigInteger, default=0, nullable=False))
+    total_tokens: int = Field(default=0, sa_column=Column(BigInteger, default=0, nullable=False))
 
     created_at: datetime = Field(sa_column= Column(pg.TIMESTAMP, default=datetime.now))
     updated_at: datetime = Field(sa_column= Column(pg.TIMESTAMP, default=datetime.now))

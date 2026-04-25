@@ -14,6 +14,10 @@ class ConversationRead(ConversationBase):
     id: int
     user_id: uuid.UUID
     is_deleted: bool
+    summary: Optional[str] = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
     created_at: datetime
     updated_at: datetime
 

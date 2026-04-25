@@ -1,11 +1,12 @@
 import logging
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from openai import (
     AsyncOpenAI, RateLimitError,
     APIError, APITimeoutError,
 )
 from utils.errors import AIClientError, AIRateLimitError
 from utils.config import get_settings
+from utils.ai.cost_control import TokenUsage, extract_usage
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -31,15 +32,15 @@ def get_ai_client() -> AsyncOpenAI:
 
 async def generate_chat_response(
     messages: List[Dict[str, str]],
-    max_retries: int = 3) -> str:
+    max_retries: int = 3) -> Tuple[str, TokenUsage]:
     """
-    Send messages to the configured LLM and return the assistant's text response.
+    Send messages to the configured LLM and return the assistant's text response + token usage.
 
     Args:
         messages: OpenAI-style message list (role/content dicts).
         max_retries: Number of retries on transient errors.
     Returns:
-        The assistant's reply content.
+        Tuple of (assistant reply content, TokenUsage).
     Raises:
         AIClientError: On fatal API or network failures.
         AIRateLimitError: When rate-limited after retries.
@@ -65,10 +66,11 @@ async def generate_chat_response(
                 temperature= 0.3,
             )
             content = response.choices[0].message.content
+            usage = extract_usage(response)
             if content is None:
                 logger.warning("LLM returned empty content")
-                return ""
-            return content
+                return "", usage
+            return content, usage
 
         except RateLimitError as exc:
             logger.warning(f"Rate limit hit (attempt {attempt}/{max_retries}): {exc}")
@@ -86,6 +88,55 @@ async def generate_chat_response(
             continue
 
     # All retries exhausted
+    if isinstance(last_exception, RateLimitError):
+        raise AIRateLimitError()
+    raise AIClientError(str(last_exception))
+
+
+async def summarize_text(text_to_summarize: str, max_retries: int = 2) -> Tuple[str, TokenUsage]:
+    """
+    Summarize a block of text (conversation history) using the configured LLM.
+    Returns:
+        Tuple of (concise summary string, TokenUsage).
+    Raises:
+        AIClientError: If summarization fails after retries.
+    """
+    client = get_ai_client()
+    model = settings.OPENAI_MODEL_ID or settings.GROQ_MODEL_ID
+
+    if not model:
+        logger.error("No model ID configured for summarization")
+        raise AIClientError("LLM model ID is not configured")
+
+    messages = [
+        {"role": "system", "content": "You are a summarization assistant. Summarize the following conversation,while preserving key facts, decisions, and context."},
+        {"role": "user", "content": text_to_summarize},
+    ]
+
+    last_exception = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.3,
+                max_tokens=512,
+            )
+            content = response.choices[0].message.content
+            usage = extract_usage(response)
+            if content is None:
+                return "", usage
+            return content.strip(), usage
+
+        except (RateLimitError, APITimeoutError, APIError) as exc:
+            logger.warning(f"Summarization API error (attempt {attempt}/{max_retries}): {exc}")
+            last_exception = exc
+            continue
+        except Exception as exc:
+            logger.exception(f"Unexpected summarization error (attempt {attempt}/{max_retries})")
+            last_exception = exc
+            continue
+
     if isinstance(last_exception, RateLimitError):
         raise AIRateLimitError()
     raise AIClientError(str(last_exception))
