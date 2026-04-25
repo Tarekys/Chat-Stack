@@ -30,6 +30,15 @@ class UserNotFound(Exception):
 class AccountNotVerified(Exception):
     """Account is not verified"""
     pass
+
+class AIClientError(Exception):
+    """LLM API call failed after retries"""
+    pass
+
+class AIRateLimitError(Exception):
+    """LLM API rate limit exceeded"""
+    pass
+
 #---------------------------------------------------------
 class MustRoles(Exception):
     """User must have one of the specified roles"""
@@ -208,6 +217,26 @@ def register_all_errors(app: FastAPI):
             detail={
                 "message": "Passwords do not match",
                 "error_code": "passwords_do_not_match",
+            },
+        )
+    )
+    app.add_exception_handler(
+        AIClientError,
+        create_error_response(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "message": "AI service is currently unavailable. Please try again later.",
+                "error_code": "ai_client_error",
+            },
+        )
+    )
+    app.add_exception_handler(
+        AIRateLimitError,
+        create_error_response(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "message": "AI rate limit exceeded. Please wait a moment and try again.",
+                "error_code": "ai_rate_limit",
             },
         )
     )

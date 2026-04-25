@@ -204,5 +204,6 @@ __marimo__/
 
 # Test files
 TEST
+docs
 
 alembic.ini

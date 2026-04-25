@@ -10,9 +10,14 @@ class Settings(BaseSettings):
     # APIs Keys
     OPENAI_API_KEY: str = None
     OPENAI_BASE_URL: str = None
-    
+    GROQ_API_KEY: str = None
+
     # Models
-    GENERATION_MODEL_ID: str = None
+    LIST_OF_GENERATION_MODEL: list[str] = []
+    SYSTEM_PROMPT: str = None
+
+    OPENAI_MODEL_ID: str = None
+    GROQ_MODEL_ID: str = None
 
     # JWT
     JWT_ALGORITHM: str = None
