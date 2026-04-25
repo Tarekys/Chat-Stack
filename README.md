@@ -1,4 +1,4 @@
-# ChatApp
+# ChatStack
 
 A FastAPI-based chat application with AI-powered conversations, memory management, per-user token tracking, and role-based access control.
 
