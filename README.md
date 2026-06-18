@@ -21,6 +21,18 @@ A FastAPI-based chat application with AI-powered conversations, memory managemen
 - **AI**: OpenAI / Groq API integration
 - **Migrations**: Alembic
 
+## Quick Start: From Signup to Chat
+
+1. **Sign Up**: `POST /api/users/signup` - Create a new account with email, username, and password. The system will send a verification email to the provided email address.
+2. **Verify Email**: 
+   - Check your email inbox for a verification email from ChatStack
+   - Click the "Verify Email Address" button in the email
+   - This will call `GET /api/auth/verify_email/{token}` to verify your account
+3. **Login**: `POST /api/users/login` - Authenticate and receive access_token and refresh_token
+4. **Create Conversation**: `POST /api/conversations/` - Start a new conversation (requires access_token in Authorization header)
+5. **Send Message**: `POST /api/messages/` - Send a message to the AI in your conversation
+6. **View History**: `GET /api/messages/conversation/{conversation_id}` - Get conversation history
+
 ## SMTP Email Service (Gmail)
 
 This project uses Gmail SMTP to send emails (e.g., account verification and password reset) via the SMTP protocol.

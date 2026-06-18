@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from datetime import datetime
 from sqlmodel.ext.asyncio.session import AsyncSession
 from controllers.users_ctrl import UserCtrl
@@ -15,6 +15,7 @@ from utils.errors import(
 
 from utils.auth.mail import send_email
 from utils.auth.auth import decode_url_token, generate_url_token
+from utils.templates import render_template
 
 auth_router = APIRouter(prefix="/api/auth",tags=["auth"])
 
@@ -48,24 +49,26 @@ async def verify_email(
     session: AsyncSession = Depends(get_session)):
 
     # Verify the token/ decode it
-    token_data = decode_url_token(token)
-    user_email = token_data.get('email')
-    
-    if user_email:
-        user = await user_ctrl.get_user(user_email, session)
+    try:
+        token_data = decode_url_token(token)
+        user_email = token_data.get('email')
         
-        if not user:
-            raise UserNotFound()
+        if user_email:
+            user = await user_ctrl.get_user(user_email, session)
+            
+            if not user:
+                html_content = render_template("verification_error.html")
+                return HTMLResponse(content=html_content, status_code=status.HTTP_404_NOT_FOUND)
 
-        await user_ctrl.update_user_verify(user, {"is_verified": True}, session)
-        return JSONResponse(
-            content={"message": "Account verified successfully"},
-            status_code=status.HTTP_200_OK
-        )
-    return JSONResponse(
-        content={"message": "Error occurred while verifying account"},
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-    )
+            await user_ctrl.update_user_verify(user, {"is_verified": True}, session)
+            html_content = render_template("verification_success.html")
+            return HTMLResponse(content=html_content, status_code=status.HTTP_200_OK)
+        
+        html_content = render_template("verification_error.html")
+        return HTMLResponse(content=html_content, status_code=status.HTTP_400_BAD_REQUEST)
+    except Exception:
+        html_content = render_template("verification_error.html")
+        return HTMLResponse(content=html_content, status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @auth_router.get("/refresh_token")
 async def new_access_token(
@@ -134,15 +137,8 @@ async def reset_password(
     token_data = {"email": email}
     token = generate_url_token(token_data, salt="password-reset")
     subject = "Password Reset Request"
-    html_message = f"""
-    <html>
-        <body>
-            <p>Hi there!</p>
-            <p>Please click the link below to reset your password:</p>
-            <p><a href="http://{settings.APP_DOMAIN}/api/auth/reset_password_confirm/{token}">Reset Password</a></p>
-        </body>
-    </html>
-    """
+    reset_link = f"http://{settings.APP_DOMAIN}/api/auth/reset_password_confirm/{token}"
+    html_message = render_template("password_reset.html", reset_link=reset_link)
 
     await send_email(recipients=[email], subject=subject, body=html_message)
     return JSONResponse(

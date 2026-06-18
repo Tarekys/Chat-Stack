@@ -20,6 +20,7 @@ from utils.auth.dependencies import (
     RoleChecker
 )
 from db.redis import add_jti_to_blocklist
+from utils.templates import render_template
 
 user_router = APIRouter(prefix="/api/users",tags=["users"])
 
@@ -46,10 +47,8 @@ async def create_user_account(
     token = generate_url_token(token_data)
 
     verify_link = f"http://{settings.APP_DOMAIN}/api/auth/verify_email/{token}"
-    html_message = f"""
-    <h1>Verify Your Account</h1>
-    <p>Hello {new_user.username}, please verify your account to continue. Click <a href="{verify_link}">here</a> to verify your account.</p>
-    """
+    
+    html_message = render_template("email_verification.html", verify_link=verify_link, username=new_user.username)
     await send_email(recipients=[email], subject="Verify Your Account", body=html_message)
 
     return {
