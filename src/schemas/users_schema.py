@@ -38,6 +38,9 @@ class UserLogin(BaseModel):
 class EmailData(BaseModel):
     addresses: List[EmailStr]
 
+class SingleEmailData(BaseModel):
+    email: EmailStr = Field(..., min_length=3)
+
 class ResetPassword(BaseModel):
     email: EmailStr = Field(..., min_length=3)
 

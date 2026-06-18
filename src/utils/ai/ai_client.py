@@ -15,17 +15,16 @@ SYSTEM_PROMPT = settings.SYSTEM_PROMPT
 
 
 def get_ai_client() -> AsyncOpenAI:
-    """Return an AsyncOpenAI client configured from application settings."""
-    # Auto-detect provider: Groq needs custom base_url, OpenAI uses default
-    if settings.OPENAI_MODEL_ID:
-        base_url = None
-    elif settings.GROQ_MODEL_ID:
-        base_url = settings.OPENAI_BASE_URL or None
-    else:
-        base_url = settings.OPENAI_BASE_URL or None
+    """Return an AsyncOpenAI client configured from application settings based on AI_BACKEND."""
+    if settings.AI_BACKEND == "GROQ":
+        api_key = settings.GROQ_API_KEY
+        base_url = settings.GROQ_BASE_URL
+    else:  # OPENAI
+        api_key = settings.OPENAI_API_KEY
+        base_url = settings.OPENAI_BASE_URL
 
     return AsyncOpenAI(
-        api_key=settings.OPENAI_API_KEY,
+        api_key=api_key,
         base_url=base_url,
         timeout=30.0,
     )
@@ -47,11 +46,17 @@ async def generate_chat_response(
     """
 
     client = get_ai_client()
-    model = settings.OPENAI_MODEL_ID or settings.GROQ_MODEL_ID
-
-    if not model:
-        logger.error("No model ID configured (OPENAI_MODEL_ID or GROQ_MODEL_ID)")
-        raise AIClientError("LLM model ID is not configured")
+    
+    if settings.AI_BACKEND == "GROQ":
+        model = settings.GROQ_MODEL_ID
+        if not model:
+            logger.error("GROQ_MODEL_ID is not configured for GROQ backend")
+            raise AIClientError("GROQ_MODEL_ID is not configured")
+    else:  # OPENAI
+        model = settings.OPENAI_MODEL_ID
+        if not model:
+            logger.error("OPENAI_MODEL_ID is not configured for OpenAI backend")
+            raise AIClientError("OPENAI_MODEL_ID is not configured")
 
     # Prepend system prompt
     openai_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -102,11 +107,17 @@ async def summarize_text(text_to_summarize: str, max_retries: int = 2) -> Tuple[
         AIClientError: If summarization fails after retries.
     """
     client = get_ai_client()
-    model = settings.OPENAI_MODEL_ID or settings.GROQ_MODEL_ID
-
-    if not model:
-        logger.error("No model ID configured for summarization")
-        raise AIClientError("LLM model ID is not configured")
+    
+    if settings.AI_BACKEND == "GROQ":
+        model = settings.GROQ_MODEL_ID
+        if not model:
+            logger.error("GROQ_MODEL_ID is not configured for summarization with GROQ backend")
+            raise AIClientError("GROQ_MODEL_ID is not configured")
+    else:  # OPENAI
+        model = settings.OPENAI_MODEL_ID
+        if not model:
+            logger.error("OPENAI_MODEL_ID is not configured for summarization with OpenAI backend")
+            raise AIClientError("OPENAI_MODEL_ID is not configured")
 
     messages = [
         {"role": "system", "content": "You are a summarization assistant. Summarize the following conversation,while preserving key facts, decisions, and context."},

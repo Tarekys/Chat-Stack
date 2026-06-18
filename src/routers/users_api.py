@@ -7,10 +7,10 @@ from db.main import get_session
 from controllers.users_ctrl import UserCtrl 
 from schemas.users_schema import (
     UserCreate, UserUpdate,
-    UserRead, UserLogin)
+    UserRead, UserLogin, SingleEmailData)
 from utils.config import get_settings
 
-from utils.auth.auth import create_access_token, verify_password, generate_url_token, decode_url_token
+from utils.auth.auth import create_access_token, verify_password, generate_url_token
 from utils.auth.mail import send_email
 from utils.errors import UserNotFound, UserAlreadyExists, InvalidCredentials
 
@@ -70,6 +70,10 @@ async def login_user(
         raise UserNotFound()
 
     if user:
+        if not user.is_verified:
+            from utils.errors import AccountNotVerified
+            raise AccountNotVerified()
+        
         password_vaild = verify_password(password, user.hash_password)
 
         if password_vaild:
@@ -105,6 +109,36 @@ async def login_user(
            )
 
     raise InvalidCredentials()
+
+@user_router.post("/resend-verification")
+async def resend_verification_email(
+    email_data: SingleEmailData,
+    session: AsyncSession = Depends(get_session)
+    ):
+    email = email_data.email
+    user = await user_ctrl.get_user(email, session)
+    
+    if not user:
+        raise UserNotFound()
+    
+    if user.is_verified:
+        return JSONResponse(
+            content={"message": "Account is already verified"},
+            status_code=status.HTTP_200_OK
+        )
+    
+    # Generate new verification token and send email
+    token_data = {"email": email}
+    token = generate_url_token(token_data)
+    verify_link = f"http://{settings.APP_DOMAIN}/api/auth/verify_email/{token}"
+    html_message = render_template("email_verification.html", verify_link=verify_link, username=user.username)
+    
+    await send_email(recipients=[email], subject="Verify Your Account - ChatStack", body=html_message)
+    
+    return JSONResponse(
+        content={"message": "Verification email resent successfully"},
+        status_code=status.HTTP_200_OK
+    )
 
 @user_router.get("/logout", response_model=UserRead, status_code=status.HTTP_200_OK)
 async def revoke_token(

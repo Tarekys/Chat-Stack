@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from typing import Literal
 import os
 
 class Settings(BaseSettings):
@@ -7,10 +8,15 @@ class Settings(BaseSettings):
 
     APP_DOMAIN: str = "localhost:8000"
 
+    # AI Backend Configuration
+    LIST_OF_AI_BACKEND: list[Literal["OPENAI", "GROQ"]] = []
+    AI_BACKEND: str = None
+
     # APIs Keys
     OPENAI_API_KEY: str = None
-    OPENAI_BASE_URL: str = None
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     GROQ_API_KEY: str = None
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
 
     # Models
     LIST_OF_GENERATION_MODEL: list[str] = []
