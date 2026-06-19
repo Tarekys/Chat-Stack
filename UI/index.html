@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatStack UI</title>
+    <link rel="stylesheet" href="./styles/main.css">
+</head>
+<body>
+    <div id="app" class="app-shell">
+        <section id="authScreen" class="screen screen-auth">
+            <div class="auth-layout">
+                <div class="auth-hero">
+                    <div class="auth-brand">
+                        <span class="brand-badge">CS</span>
+                        <div>
+                            <h1>ChatStack</h1>
+                            <p>Modern AI chat experience for your FastAPI app.</p>
+                        </div>
+                    </div>
+                    <div class="auth-hero__content">
+                        <span class="eyebrow">Smart conversations</span>
+                        <h2>Log in or create your account to continue chatting.</h2>
+                        <p>
+                            Access your previous conversations, start a new chat, and move between
+                            authentication and messaging in one smooth interface.
+                        </p>
+                        <div class="hero-pills">
+                            <span>AI responses</span>
+                            <span>Email verification</span>
+                            <span>Saved conversations</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="auth-card auth-card--floating">
+                    <div class="auth-card__top">
+                        <div>
+                            <p class="eyebrow">Welcome back</p>
+                            <h3>Log in or sign up</h3>
+                        </div>
+                        <span class="floating-dot"></span>
+                    </div>
+
+                    <div class="auth-tabs">
+                        <button class="tab-button is-active" data-auth-tab="login">Login</button>
+                        <button class="tab-button" data-auth-tab="signup">Create account</button>
+                    </div>
+
+                    <form id="loginForm" class="auth-form">
+                        <label>
+                            <span>Email</span>
+                            <input type="email" name="email" placeholder="name@example.com" required>
+                        </label>
+                        <label>
+                            <span>Password</span>
+                            <input type="password" name="password" placeholder="Enter your password" required minlength="8">
+                        </label>
+                        <button type="submit" class="primary-button">Continue</button>
+                    </form>
+
+                    <form id="signupForm" class="auth-form is-hidden">
+                        <label>
+                            <span>Username</span>
+                            <input type="text" name="username" placeholder="Choose a username" required minlength="3">
+                        </label>
+                        <label>
+                            <span>Full name</span>
+                            <input type="text" name="fullname" placeholder="Your full name" required minlength="3">
+                        </label>
+                        <label>
+                            <span>Email</span>
+                            <input type="email" name="email" placeholder="name@example.com" required>
+                        </label>
+                        <label>
+                            <span>Password</span>
+                            <input type="password" name="password" placeholder="Create a password" required minlength="8">
+                        </label>
+                        <button type="submit" class="primary-button">Create account</button>
+                    </form>
+
+                    <div id="authMessage" class="status-box is-hidden"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="verificationScreen" class="screen screen-verify is-hidden">
+            <div class="verify-card">
+                <div class="verify-icon">✉</div>
+                <h2>Check your inbox</h2>
+                <p id="verificationHint">
+                    We sent a verification link to your email. Open the email and click the verification button.
+                </p>
+                <div class="verify-actions">
+                    <button id="verifiedGoLogin" class="primary-button">I already verified my account</button>
+                    <button id="openResendPage" class="secondary-button">Resend verification link</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="chatScreen" class="screen screen-chat is-hidden">
+            <aside class="sidebar">
+                <div class="sidebar-top">
+                    <button id="newChatButton" class="new-chat-button">New chat</button>
+                    <label class="search-box">
+                        <span>Search chats</span>
+                        <input id="conversationSearch" type="search" placeholder="Search chats">
+                    </label>
+                </div>
+
+                <div class="sidebar-section">
+                    <p class="sidebar-label">Recents</p>
+                    <div id="conversationList" class="conversation-list"></div>
+                </div>
+
+                <div class="sidebar-footer">
+                    <div class="user-chip">
+                        <div class="user-chip__avatar" id="userAvatar">U</div>
+                        <div>
+                            <strong id="sidebarUsername">User</strong>
+                            <p id="sidebarEmail">email@example.com</p>
+                        </div>
+                    </div>
+                    <button id="logoutButton" class="ghost-button">Logout</button>
+                </div>
+            </aside>
+
+            <main class="chat-main">
+                <header class="chat-header">
+                    <div>
+                        <h2 id="chatTitle">What’s on your mind today?</h2>
+                        <p id="chatSubtitle">Start a new conversation or continue an existing one.</p>
+                    </div>
+                </header>
+
+                <div id="messagesContainer" class="messages-container">
+                    <div class="empty-state" id="emptyState">
+                        <h3>Start your first message</h3>
+                        <p>Your recent chats will appear in the sidebar and responses will show here.</p>
+                    </div>
+                </div>
+
+                <form id="composerForm" class="composer">
+                    <textarea
+                        id="messageInput"
+                        rows="1"
+                        placeholder="Ask anything"
+                        maxlength="4000"
+                    ></textarea>
+                    <button type="submit" id="sendButton" class="send-button">Send</button>
+                </form>
+
+                <div id="chatMessage" class="status-box status-box--inline is-hidden"></div>
+            </main>
+        </section>
+    </div>
+
+    <script src="./scripts/config.js"></script>
+    <script src="./scripts/api.js"></script>
+    <script src="./scripts/app.js"></script>
+</body>
+</html>

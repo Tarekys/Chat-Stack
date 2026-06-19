@@ -26,4 +26,3 @@ class ConversationRead(ConversationBase):
 
 class ConversationUpdate(BaseModel):
     title: Optional[str] = None
-    is_deleted: Optional[bool] = False
