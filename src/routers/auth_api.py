@@ -137,7 +137,7 @@ async def reset_password(
     token_data = {"email": email}
     token = generate_url_token(token_data, salt="password-reset")
     subject = "Password Reset Request"
-    reset_link = f"http://{settings.APP_DOMAIN}/api/auth/reset_password_confirm/{token}"
+    reset_link = f"{settings.FRONTEND_URL}?reset_token={token}"
     html_message = render_template("password_reset.html", reset_link=reset_link)
 
     await send_email(recipients=[email], subject=subject, body=html_message)

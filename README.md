@@ -41,6 +41,7 @@ This project uses Gmail SMTP to send emails (e.g., account verification and pass
 - Uses Gmail with an **App Password** instead of the regular account password.
 - Server: `smtp.gmail.com`
 - Port: `587` with `TLS` enabled
+- Set `FRONTEND_URL` to the public URL of `UI/index.html` so password-reset emails open the UI form (the development default uses VS Code Live Server).
 
 ### Limits:
 - Up to **500 emails per day** for standard Gmail accounts.

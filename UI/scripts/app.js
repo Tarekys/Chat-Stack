@@ -12,7 +12,8 @@
         conversations: [],
         filteredConversations: [],
         activeConversation: null,
-        messages: []
+        messages: [],
+        passwordResetToken: ""
     };
 
     const elements = {
@@ -23,6 +24,12 @@
         chatMessage: document.getElementById("chatMessage"),
         loginForm: document.getElementById("loginForm"),
         signupForm: document.getElementById("signupForm"),
+        authTabs: document.querySelector(".auth-tabs"),
+        authEyebrow: document.getElementById("authEyebrow"),
+        authTitle: document.getElementById("authTitle"),
+        forgotPasswordButton: document.getElementById("forgotPasswordButton"),
+        passwordResetRequestForm: document.getElementById("passwordResetRequestForm"),
+        passwordResetConfirmForm: document.getElementById("passwordResetConfirmForm"),
         verifiedGoLogin: document.getElementById("verifiedGoLogin"),
         openResendPage: document.getElementById("openResendPage"),
         composerForm: document.getElementById("composerForm"),
@@ -45,6 +52,14 @@
 
     async function init() {
         bindEvents();
+
+        const resetToken = new URLSearchParams(window.location.search).get("reset_token");
+        if (resetToken) {
+            state.passwordResetToken = resetToken;
+            showAuthScreen();
+            showPasswordRecovery("confirm");
+            return;
+        }
 
         if (state.accessToken) {
             try {
@@ -70,6 +85,12 @@
 
         elements.loginForm.addEventListener("submit", onLoginSubmit);
         elements.signupForm.addEventListener("submit", onSignupSubmit);
+        elements.forgotPasswordButton.addEventListener("click", () => showPasswordRecovery("request"));
+        elements.passwordResetRequestForm.addEventListener("submit", onPasswordResetRequestSubmit);
+        elements.passwordResetConfirmForm.addEventListener("submit", onPasswordResetConfirmSubmit);
+        document.querySelectorAll("[data-return-login]").forEach((button) => {
+            button.addEventListener("click", () => switchAuthTab("login"));
+        });
         elements.verifiedGoLogin.addEventListener("click", () => {
             switchAuthTab("login");
             showAuthScreen();
@@ -102,9 +123,65 @@
         document.querySelectorAll("[data-auth-tab]").forEach((button) => {
             button.classList.toggle("is-active", button.dataset.authTab === tabName);
         });
+        elements.authTabs.classList.remove("is-hidden");
         elements.loginForm.classList.toggle("is-hidden", !isLogin);
         elements.signupForm.classList.toggle("is-hidden", isLogin);
+        elements.passwordResetRequestForm.classList.add("is-hidden");
+        elements.passwordResetConfirmForm.classList.add("is-hidden");
+        elements.authEyebrow.textContent = "Welcome back";
+        elements.authTitle.textContent = "Log in or sign up";
         clearBox(elements.authMessage);
+    }
+
+    function showPasswordRecovery(mode) {
+        elements.authTabs.classList.add("is-hidden");
+        elements.loginForm.classList.add("is-hidden");
+        elements.signupForm.classList.add("is-hidden");
+        elements.passwordResetRequestForm.classList.toggle("is-hidden", mode !== "request");
+        elements.passwordResetConfirmForm.classList.toggle("is-hidden", mode !== "confirm");
+        elements.authEyebrow.textContent = "Account recovery";
+        elements.authTitle.textContent = mode === "confirm" ? "Choose a new password" : "Forgot password?";
+        clearBox(elements.authMessage);
+    }
+
+    async function onPasswordResetRequestSubmit(event) {
+        event.preventDefault();
+        clearBox(elements.authMessage);
+
+        const formData = new FormData(elements.passwordResetRequestForm);
+        const email = formData.get("email");
+
+        try {
+            setFormBusy(elements.passwordResetRequestForm, true);
+            const response = await window.ChatStackAPI.requestPasswordReset(email);
+            showBox(elements.authMessage, response.message || "Please check your email for a password reset link.", "success");
+        } catch (error) {
+            showBox(elements.authMessage, error.message, "error");
+        } finally {
+            setFormBusy(elements.passwordResetRequestForm, false);
+        }
+    }
+
+    async function onPasswordResetConfirmSubmit(event) {
+        event.preventDefault();
+        clearBox(elements.authMessage);
+
+        const formData = new FormData(elements.passwordResetConfirmForm);
+        const passwords = Object.fromEntries(formData.entries());
+
+        try {
+            setFormBusy(elements.passwordResetConfirmForm, true);
+            const response = await window.ChatStackAPI.confirmPasswordReset(state.passwordResetToken, passwords);
+            state.passwordResetToken = "";
+            window.history.replaceState({}, document.title, window.location.pathname);
+            switchAuthTab("login");
+            showBox(elements.authMessage, response.message || "Password reset successfully. You can now log in.", "success");
+            elements.passwordResetConfirmForm.reset();
+        } catch (error) {
+            showBox(elements.authMessage, error.message, "error");
+        } finally {
+            setFormBusy(elements.passwordResetConfirmForm, false);
+        }
     }
 
     async function onLoginSubmit(event) {
@@ -439,7 +516,7 @@
 
                 // Position dropdown using fixed coords so it never clips
                 const rect = trigger.getBoundingClientRect();
-                dropdown.style.top  = `${rect.bottom + 6}px`;
+                dropdown.style.top = `${rect.bottom + 6}px`;
                 dropdown.style.left = `${rect.left - 140}px`;
                 document.body.appendChild(dropdown);
 

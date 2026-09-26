@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     APP_DOMAIN: str = "localhost:8000"
+    FRONTEND_URL: str = "http://127.0.0.1:5500/UI/index.html"
 
     # AI Backend Configuration
     LIST_OF_AI_BACKEND: list[Literal["OPENAI", "GROQ"]] = []

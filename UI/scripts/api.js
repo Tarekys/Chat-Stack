@@ -64,6 +64,18 @@
                 body: credentials
             });
         },
+        requestPasswordReset(email) {
+            return request("/api/auth/reset_password", {
+                method: "POST",
+                body: { email }
+            });
+        },
+        confirmPasswordReset(token, passwords) {
+            return request(`/api/auth/reset_password_confirm/${encodeURIComponent(token)}`, {
+                method: "POST",
+                body: passwords
+            });
+        },
         me(token) {
             return request("/api/users/me", {
                 token

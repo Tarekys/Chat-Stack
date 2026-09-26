@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ChatStack UI</title>
     <link rel="stylesheet" href="./styles/main.css">
 </head>
+
 <body>
     <div id="app" class="app-shell">
         <section id="authScreen" class="screen screen-auth">
@@ -36,8 +38,8 @@
                 <div class="auth-card auth-card--floating">
                     <div class="auth-card__top">
                         <div>
-                            <p class="eyebrow">Welcome back</p>
-                            <h3>Log in or sign up</h3>
+                            <p id="authEyebrow" class="eyebrow">Welcome back</p>
+                            <h3 id="authTitle">Log in or sign up</h3>
                         </div>
                         <span class="floating-dot"></span>
                     </div>
@@ -54,8 +56,10 @@
                         </label>
                         <label>
                             <span>Password</span>
-                            <input type="password" name="password" placeholder="Enter your password" required minlength="8">
+                            <input type="password" name="password" placeholder="Enter your password" required
+                                minlength="8">
                         </label>
+                        <button id="forgotPasswordButton" type="button" class="text-button">Forgot password?</button>
                         <button type="submit" class="primary-button">Continue</button>
                     </form>
 
@@ -74,9 +78,34 @@
                         </label>
                         <label>
                             <span>Password</span>
-                            <input type="password" name="password" placeholder="Create a password" required minlength="8">
+                            <input type="password" name="password" placeholder="Create a password" required
+                                minlength="8">
                         </label>
                         <button type="submit" class="primary-button">Create account</button>
+                    </form>
+
+                    <form id="passwordResetRequestForm" class="auth-form is-hidden">
+                        <label>
+                            <span>Email</span>
+                            <input type="email" name="email" placeholder="name@example.com" required>
+                        </label>
+                        <button type="submit" class="primary-button">Send reset link</button>
+                        <button type="button" class="text-button" data-return-login>Back to login</button>
+                    </form>
+
+                    <form id="passwordResetConfirmForm" class="auth-form is-hidden">
+                        <label>
+                            <span>New password</span>
+                            <input type="password" name="new_password" placeholder="Enter a new password" required
+                                minlength="8" autocomplete="new-password">
+                        </label>
+                        <label>
+                            <span>Confirm new password</span>
+                            <input type="password" name="confirm_new_password" placeholder="Confirm your new password"
+                                required minlength="8" autocomplete="new-password">
+                        </label>
+                        <button type="submit" class="primary-button">Update password</button>
+                        <button type="button" class="text-button" data-return-login>Back to login</button>
                     </form>
 
                     <div id="authMessage" class="status-box is-hidden"></div>
@@ -141,12 +170,7 @@
                 </div>
 
                 <form id="composerForm" class="composer">
-                    <textarea
-                        id="messageInput"
-                        rows="1"
-                        placeholder="Ask anything"
-                        maxlength="4000"
-                    ></textarea>
+                    <textarea id="messageInput" rows="1" placeholder="Ask anything" maxlength="4000"></textarea>
                     <button type="submit" id="sendButton" class="send-button">Send</button>
                 </form>
 
@@ -159,4 +183,5 @@
     <script src="./scripts/api.js"></script>
     <script src="./scripts/app.js"></script>
 </body>
+
 </html>
