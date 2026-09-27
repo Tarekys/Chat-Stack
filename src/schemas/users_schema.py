@@ -47,3 +47,9 @@ class ResetPassword(BaseModel):
 class ResetPasswordConfirm(BaseModel):
     new_password: str = Field(..., min_length=8)
     confirm_new_password: str = Field(..., min_length=8)
+
+class ChangePassword(BaseModel):
+    """Used when a logged-in user wants to change their own password."""
+    current_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=8)
+    confirm_new_password: str = Field(..., min_length=8)

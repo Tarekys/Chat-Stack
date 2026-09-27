@@ -11,7 +11,7 @@ from models import User
 from typing import Any, List
 from ..errors import (
      InvalidToken, RefreshTokenRequired, NoPermission,
-     AccessTokenRequired, AccountNotVerified)
+     AccessTokenRequired, AccountNotVerified, UserNotFound)
 
 user_ctrl = users_ctrl.UserCtrl()
 
@@ -21,12 +21,10 @@ class TokenBearer(HTTPBearer):
      
      async def __call__(self, request: Request) -> HTTPAuthorizationCredentials | None:
           crads = await super().__call__(request)
-
           token = crads.credentials
-
           token_data = decode_token(token)
 
-          if not self.token_valid(token):
+          if not token_data:
                raise InvalidToken()
 
           if await token_in_blocklist(jti = token_data['jti']):
@@ -36,14 +34,6 @@ class TokenBearer(HTTPBearer):
 
           # if we reach here, the token is valid and verified
           return token_data
-
-
-     def token_valid(self, token: str) -> bool:
-          token_data = decode_token(token)
-          if token_data:
-               return True
-          else:
-               return False
 
      def verify_token(self, token_data):
           raise NotImplementedError(
@@ -69,6 +59,10 @@ async def get_current_user(
 
      user_email = token_data['user']['email']
      user = await user_ctrl.get_user(user_email, session)
+
+     if not user or user.is_deleted:
+          raise UserNotFound()
+
      return user
 
 
@@ -91,6 +85,3 @@ class RoleChecker:
                return True
 
           raise NoPermission()
-          
-## Pre-defined role checkers
-# checker_any = RoleChecker(["user", "admin", "superadmin"])

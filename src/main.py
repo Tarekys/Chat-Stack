@@ -8,6 +8,9 @@ from contextlib import asynccontextmanager
 from db.main import init_db
 from utils.errors import register_all_errors
 from utils.middleware import setup_middleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from routers import (
     base_api,
     conversations_api,
@@ -23,11 +26,18 @@ async def life_span(app: FastAPI): # lifespan must have async function
     yield
     print("server is shutting down...")
 
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(
     title= "Chat App",
     description= "A chat application with memory management",
-    version= "1.0"
+    version= "1.0",
+    lifespan=life_span
 )
+
+# Rate limiting
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 register_all_errors(app)
 

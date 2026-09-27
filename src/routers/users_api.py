@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Request
 from fastapi.responses import JSONResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import List
@@ -21,9 +21,12 @@ from utils.auth.dependencies import (
 )
 from db.redis import add_jti_to_blocklist
 from utils.templates import render_template
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 user_router = APIRouter(prefix="/api/users",tags=["users"])
 
+limiter = Limiter(key_func=get_remote_address)
 user_allowed = RoleChecker(["user"])
 admin_allowed = RoleChecker(["admin"])
 
@@ -32,7 +35,9 @@ settings = get_settings()
 
 
 @user_router.post("/signup", status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def create_user_account(
+    request: Request,
     user_data: UserCreate,
     session: AsyncSession = Depends(get_session)):
 
@@ -42,7 +47,7 @@ async def create_user_account(
         raise UserAlreadyExists()
     new_user = await user_ctrl.create_user(user_data, session)
 
-    # Verify email token usin SMTP Server
+    # Verify email token using SMTP Server
     token_data = {"email":email}
     token = generate_url_token(token_data)
 
@@ -57,7 +62,9 @@ async def create_user_account(
     }
 
 @user_router.post("/login", response_model=UserRead, status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")
 async def login_user(
+    request: Request,
     user_data: UserLogin,
     session: AsyncSession = Depends(get_session)):
 
@@ -67,48 +74,45 @@ async def login_user(
     user = await user_ctrl.get_user(email, session)
 
     if not user:
-        raise UserNotFound()
+        raise InvalidCredentials()  # لا نُفصح إن كان السبب Email أم Password
 
-    if user:
-        if not user.is_verified:
-            from utils.errors import AccountNotVerified
-            raise AccountNotVerified()
+    if not user.is_verified:
+        from utils.errors import AccountNotVerified
+        raise AccountNotVerified()
         
-        password_vaild = verify_password(password, user.hash_password)
+    if not verify_password(password, user.hash_password):
+        raise InvalidCredentials()
 
-        if password_vaild:
-            access_token = create_access_token(
-                user_data={
-                    "email": user.email,
-                    "user_id": str(user.id),
-                    "role": user.role
-                },
-                expiry = timedelta(seconds=settings.ACCESS_TOKEN_EXPIRY)
-            )
+    access_token = create_access_token(
+        user_data={
+            "email": user.email,
+            "user_id": str(user.id),
+            "role": user.role
+        },
+        expiry = timedelta(seconds=settings.ACCESS_TOKEN_EXPIRY)
+    )
 
-            refresh_token = create_access_token(
-                user_data={
-                    "email": user.email,
-                    "user_id": str(user.id)
-                },
-                refresh = True,
-                expiry = timedelta(days=settings.REFRESH_TOKEN_EXPIRY)
-            )
+    refresh_token = create_access_token(
+        user_data={
+            "email": user.email,
+            "user_id": str(user.id)
+        },
+        refresh = True,
+        expiry = timedelta(days=settings.REFRESH_TOKEN_EXPIRY)
+    )
 
-            return JSONResponse(
-                content={
-                    "message": "Login successful",
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "user_data": {
-                        "email": user.email,
-                        "user_id": str(user.id),
-                        "role": user.role
-                    }
-                }
-           )
-
-    raise InvalidCredentials()
+    return JSONResponse(
+        content={
+            "message": "Login successful",
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "user_data": {
+                "email": user.email,
+                "user_id": str(user.id),
+                "role": user.role
+            }
+        }
+   )
 
 @user_router.post("/resend-verification")
 async def resend_verification_email(
@@ -140,26 +144,49 @@ async def resend_verification_email(
         status_code=status.HTTP_200_OK
     )
 
-@user_router.get("/logout", response_model=UserRead, status_code=status.HTTP_200_OK)
+@user_router.post("/logout", status_code=status.HTTP_200_OK)
 async def revoke_token(
     token_details: dict = Depends(AccessTokenBearer())
     ):
+    """Revoke the current access token (logout)."""
     jti = token_details["jti"]
     await add_jti_to_blocklist(jti)
     return JSONResponse(
-        content={
-            "message": "Token revoked successfully"
-        },
+        content={"message": "Logged out successfully"},
         status_code=status.HTTP_200_OK
     )
 
 
 @user_router.get("/me")
-async def get_current_user(
+async def get_my_profile(
     current_user = Depends(get_current_user),
     _: bool = Depends(user_allowed)
     ):
+    """Get the authenticated user's profile."""
     return current_user
+
+
+@user_router.put("/me", response_model=UserRead)
+async def update_my_profile(
+    user_data: UserUpdate,
+    session: AsyncSession = Depends(get_session),
+    current_user = Depends(get_current_user),
+    _: bool = Depends(user_allowed)
+    ):
+    """Update the authenticated user's own profile."""
+    updated_user = await user_ctrl.update_user(current_user.email, user_data, session)
+    return updated_user
+
+
+@user_router.delete("/me", status_code=status.HTTP_200_OK)
+async def delete_my_account(
+    session: AsyncSession = Depends(get_session),
+    current_user = Depends(get_current_user),
+    _: bool = Depends(user_allowed)
+    ):
+    """Soft-delete the authenticated user's own account."""
+    result = await user_ctrl.delete_user(current_user.email, session)
+    return JSONResponse(content=result, status_code=status.HTTP_200_OK)
 
 
 @user_router.get("/all", response_model=List[UserRead])

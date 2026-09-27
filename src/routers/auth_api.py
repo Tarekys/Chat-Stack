@@ -1,47 +1,32 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Body
 from fastapi.responses import JSONResponse, HTMLResponse
 from datetime import datetime
 from sqlmodel.ext.asyncio.session import AsyncSession
 from controllers.users_ctrl import UserCtrl
 from db.main import get_session 
-from schemas.users_schema import EmailData, ResetPassword, ResetPasswordConfirm
+from schemas.users_schema import EmailData, ResetPassword, ResetPasswordConfirm, ChangePassword
 
 from utils.config import get_settings
-from utils.auth.auth import create_access_token, hash_password
-from utils.auth.dependencies import RefreshTokenBearer,RoleChecker
+from utils.auth.auth import create_access_token, hash_password, verify_password
+from utils.auth.dependencies import RefreshTokenBearer, RoleChecker, get_current_user, AccessTokenBearer
 from utils.errors import(
     UserNotFound, InvalidToken, PasswordsDoNotMatch,
-    MustRoles, CannotModifySuperadmin)
+    MustRoles, CannotModifySuperadmin, InvalidCredentials)
 
 from utils.auth.mail import send_email
 from utils.auth.auth import decode_url_token, generate_url_token
 from utils.templates import render_template
+from db.redis import add_jti_to_blocklist
+from models import User
 
-auth_router = APIRouter(prefix="/api/auth",tags=["auth"])
+auth_router = APIRouter(prefix="/api/auth",tags=["Authentication & Authorization"])
 
 superadmin_allowed = RoleChecker(["superadmin"])
+user_allowed = RoleChecker(["user"])
 user_ctrl = UserCtrl()
 settings = get_settings()
 
 
-@auth_router.post("/test-send-mail")
-async def send_test_email(mail_data: EmailData):
-    emails = mail_data.addresses
-    subject = "Verification Email!"
-    html_content = """
-    <html>
-        <body>
-            <p>Hi there!</p>
-            <p>Welcome to our application!</p>
-        </body>
-    </html>
-    """
-
-    await send_email(recipients=emails, subject=subject, body=html_content)
-    return JSONResponse(
-        content={"message": "Email sent successfully"},
-        status_code=status.HTTP_200_OK
-    )
 
 @auth_router.get("/verify_email/{token}")
 async def verify_email(
@@ -92,11 +77,11 @@ async def new_access_token(
 
 @auth_router.post("/update_role", status_code=status.HTTP_200_OK)
 async def update_user_role(
-    email: str,
-    username: str,
-    role: str,
+    email: str = Body(...),
+    role: str = Body(...),
     session: AsyncSession = Depends(get_session),
     _: bool = Depends(superadmin_allowed)):
+    """Update a user's role. Only superadmin can call this."""
 
     if role not in ("user", "admin"):
         raise MustRoles()
@@ -117,6 +102,46 @@ async def update_user_role(
         content={"message": f"User '{email}' role updated to '{role}'"},
         status_code=status.HTTP_200_OK
         )
+
+
+@auth_router.post("/change-password", status_code=status.HTTP_200_OK)
+async def change_password(
+    password_data: ChangePassword,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    _: bool = Depends(user_allowed)):
+    """Change password for the authenticated user. Requires current password."""
+
+    if not verify_password(password_data.current_password, current_user.hash_password):
+        raise InvalidCredentials()
+
+    if password_data.new_password != password_data.confirm_new_password:
+        raise PasswordsDoNotMatch()
+
+    pwd_hash = hash_password(password_data.new_password)
+    await user_ctrl.update_user_verify(current_user, {"hash_password": pwd_hash}, session)
+
+    return JSONResponse(
+        content={"message": "Password changed successfully"},
+        status_code=status.HTTP_200_OK
+    )
+
+
+@auth_router.post("/revoke-all-sessions", status_code=status.HTTP_200_OK)
+async def revoke_all_sessions(
+    token_details: dict = Depends(AccessTokenBearer()),
+    _: bool = Depends(user_allowed)):
+    """Logout from all devices by revoking the current token.
+    
+    Note: For full multi-device logout, implement a per-user token version counter in Redis.
+    This revokes the current session's token immediately.
+    """
+    jti = token_details["jti"]
+    await add_jti_to_blocklist(jti)
+    return JSONResponse(
+        content={"message": "Current session revoked. Please logout from other devices manually."},
+        status_code=status.HTTP_200_OK
+    )
 
 
 @auth_router.post("/reset_password")

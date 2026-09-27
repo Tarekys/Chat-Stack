@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import Literal
+from typing import Literal, List
 import os
 
 class Settings(BaseSettings):
@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     APP_DOMAIN: str = "localhost:8000"
     FRONTEND_URL: str = "http://127.0.0.1:5500/UI/index.html"
+    ALLOWED_ORIGINS: List[str] = ["http://127.0.0.1:5500", "http://localhost:5500"]
 
     # AI Backend Configuration
     LIST_OF_AI_BACKEND: list[Literal["OPENAI", "GROQ"]] = []

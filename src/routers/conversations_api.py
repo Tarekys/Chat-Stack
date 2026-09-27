@@ -59,18 +59,24 @@ async def get_my_conversations(
 async def get_conversation(
     conversation_id: int,
     session: AsyncSession = Depends(get_session),
-    token: str = Depends(access_token_bearer)):
+    current_user: User = Depends(get_current_user),
+    _: bool = Depends(user_allowed)):
+    """Get a conversation by ID. Ownership-checked."""
 
-    # conv_ctrl.get_conversation raises ConversationNotFound automatically
     conversation = await conv_ctrl.get_conversation(conversation_id, session)
+    ensure_conversation_owner_or_superadmin(conversation, current_user)
     return conversation
 
 @conv_router.post("/", response_model=ConversationRead, status_code=status.HTTP_201_CREATED)
 async def create_conversation(
     conversation_data: ConversationCreate, 
     session: AsyncSession = Depends(get_session),
-    token: str = Depends(access_token_bearer)):
-    
+    current_user: User = Depends(get_current_user),
+    _: bool = Depends(user_allowed)):
+    """Create a new conversation. user_id is taken from the auth token automatically."""
+
+    # Override user_id from token — client cannot spoof another user's ID
+    conversation_data.user_id = current_user.id
     new_conv = await conv_ctrl.create_conversation(conversation_data, session)
     return new_conv
 

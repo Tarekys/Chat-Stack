@@ -20,28 +20,28 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     hashed_password_bytes = hashed_password.encode('utf-8')
     return bcrypt.checkpw(password_byte_enc, hashed_password_bytes)
 
-def create_access_token(user_data: dict, expiry: timedelta= None, refresh: bool = False):
+def create_access_token(user_data: dict, expiry: timedelta = None, refresh: bool = False):
     payload = {}
 
     payload['user'] = user_data
     payload['exp'] = datetime.now() + (
         expiry if expiry else timedelta(seconds=settings.ACCESS_TOKEN_EXPIRY)
     )
-    payload['jti'] = str(uuid.uuid4()) # jwt id
+    payload['jti'] = str(uuid.uuid4())  # jwt id
     payload['refresh'] = refresh
-    
+
     token = jwt.encode(
-        payload = payload, 
-        key = settings.JWT_SECRET_KEY, 
-        algorithm = settings.JWT_ALGORITHM
+        payload=payload,
+        key=settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM
     )
     return token
- 
+
 def decode_token(token: str) -> dict | None:
     try:
         token_data = jwt.decode(
-            jwt = token,
-            key = settings.JWT_SECRET_KEY,
+            jwt=token,
+            key=settings.JWT_SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM]
         )
         return token_data
@@ -53,16 +53,22 @@ def decode_token(token: str) -> dict | None:
 
 salt = "email-verification"
 serializer = URLSafeTimedSerializer(
-        secret_key = settings.JWT_SECRET_KEY,
-        salt = salt
-    )
-def generate_url_token(data:dict, salt:str = salt):
+    secret_key=settings.JWT_SECRET_KEY,
+    salt=salt
+)
+
+def generate_url_token(data: dict, salt: str = salt):
     token = serializer.dumps(data, salt=salt)
     return token
 
-def decode_url_token(token: str, salt: str = salt):
+def decode_url_token(token: str, salt: str = salt, max_age: int = 3600):
+    """Decode a URL-safe token. Raises InvalidToken if expired or invalid.
+
+    Args:
+        max_age: Token validity in seconds (default: 1 hour).
+    """
     try:
-        token_data = serializer.loads(token, salt=salt)
+        token_data = serializer.loads(token, salt=salt, max_age=max_age)
         if not token_data:
             raise InvalidToken()
 
