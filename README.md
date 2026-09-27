@@ -21,6 +21,35 @@ A FastAPI-based chat application with AI-powered conversations, memory managemen
 - **AI**: OpenAI / Groq API integration
 - **Migrations**: Alembic
 
+## Installation & Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/Tarekys/Chat-Stack.git
+   ```
+
+2. **Create and activate a virtual environment (e.g., using Conda):**
+   ```bash
+   conda create -n env_name python=3.11
+   conda activate env_name
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   cd src
+   pip install -r requirements.txt
+   ```
+
+4. **Environment Variables:**
+   - Copy `.env.example` to `.env` inside the `src/` directory.
+   - Update the variables inside `.env` (Database URL, API Keys, JWT Secret, Mail configs).
+
+5. **Run the Server:**
+   ```bash
+   uvicorn main:app --reload --port 8000
+   ```
+   The API will be available at `http://127.0.0.1:8000`.
+
 ## Quick Start: From Signup to Chat
 
 1. **Sign Up**: `POST /api/users/signup` - Create a new account with email, username, and password. The system will send a verification email to the provided email address.
