@@ -1,5 +1,6 @@
 import logging
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
+# pyrefly: ignore [missing-import]
 from openai import (
     AsyncOpenAI, RateLimitError,
     APIError, APITimeoutError,
@@ -18,10 +19,9 @@ def get_ai_client() -> AsyncOpenAI:
     """Return an AsyncOpenAI client configured from application settings based on AI_BACKEND."""
     if settings.AI_BACKEND == "GROQ":
         api_key = settings.GROQ_API_KEY
-        base_url = settings.GROQ_BASE_URL
+        base_url = settings.BASE_URL
     else:  # OPENAI
         api_key = settings.OPENAI_API_KEY
-        base_url = settings.OPENAI_BASE_URL
 
     return AsyncOpenAI(
         api_key=api_key,
@@ -30,7 +30,7 @@ def get_ai_client() -> AsyncOpenAI:
     )
 
 async def generate_chat_response(
-    messages: List[Dict[str, str]],
+    messages: List[Dict[str, Any]],
     max_retries: int = 3) -> Tuple[str, TokenUsage]:
     """
     Send messages to the configured LLM and return the assistant's text response + token usage.

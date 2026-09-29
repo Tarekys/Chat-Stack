@@ -16,3 +16,8 @@ fastapi-mail==1.6.2
 itsdangerous==2.2.0
 openai==2.32.0 
 slowapi==0.1.10
+groq==1.7.0
+
+#S3 storage
+boto3==1.44.146
+python-multipart==0.0.32

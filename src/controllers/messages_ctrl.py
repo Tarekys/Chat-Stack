@@ -44,7 +44,8 @@ class MessageCtrl:
         user_msg = Message(
             conversation_id=message_data.conversation_id,
             role="user",
-            content=message_data.content
+            content=message_data.content,
+            image_urls=message_data.image_urls
         )
         session.add(user_msg)
         await session.commit()
@@ -96,11 +97,29 @@ class MessageCtrl:
 
             # Add recent messages verbatim
             for msg in recent_messages:
-                openai_messages.append({"role": msg.role, "content": msg.content})
+                if msg.image_urls:
+                    content_list = [{"type": "text", "text": msg.content}]
+                    for url in msg.image_urls:
+                        content_list.append({"type": "image_url", "image_url": {"url": url}})
+                    openai_messages.append({
+                        "role": msg.role,
+                        "content": content_list
+                    })
+                else:
+                    openai_messages.append({"role": msg.role, "content": msg.content})
         else:
             # Under limit, send all messages as-is
             for msg in all_messages:
-                openai_messages.append({"role": msg.role, "content": msg.content})
+                if msg.image_urls:
+                    content_list = [{"type": "text", "text": msg.content}]
+                    for url in msg.image_urls:
+                        content_list.append({"type": "image_url", "image_url": {"url": url}})
+                    openai_messages.append({
+                        "role": msg.role,
+                        "content": content_list
+                    })
+                else:
+                    openai_messages.append({"role": msg.role, "content": msg.content})
 
         # 5. Call LLM
         assistant_content, chat_usage = await generate_chat_response(openai_messages)

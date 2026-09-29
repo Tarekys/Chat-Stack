@@ -6,9 +6,14 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
 
+    # App Configuration
     APP_DOMAIN: str = "localhost:8000"
     FRONTEND_URL: str = "http://127.0.0.1:5500/UI/index.html"
     ALLOWED_ORIGINS: List[str] = ["http://127.0.0.1:5500", "http://localhost:5500"]
+
+    # Admin Configuration
+    ADMIN_EMAIL: str = None
+    ADMIN_USERNAME: str = None
 
     # AI Backend Configuration
     LIST_OF_AI_BACKEND: list[Literal["OPENAI", "GROQ"]] = []
@@ -16,9 +21,8 @@ class Settings(BaseSettings):
 
     # APIs Keys
     OPENAI_API_KEY: str = None
-    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     GROQ_API_KEY: str = None
-    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
+    BASE_URL: str = "https://api.groq.com/openai/v1"
 
     # Models
     LIST_OF_GENERATION_MODEL: list[str] = []
@@ -37,10 +41,6 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
 
-    # Admin
-    ADMIN_EMAIL: str = None
-    ADMIN_USERNAME: str = None
-
     # Mail Service
     MAIL_USERNAME: str = None
     MAIL_PASSWORD: str = None
@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     MAIL_PORT: int = 587
     MAIL_SERVER: str = None
     MAIL_FROM_NAME: str = None
+
+    # S3
+    S3_ACCESS_KEY_ID: str = None
+    S3_SECRET_ACCESS_KEY: str = None
+    S3_REGION: str = None
+    S3_ENDPOINT: str = None
+    S3_BUCKET_NAME: str = None
 
     class Config:
         env_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')

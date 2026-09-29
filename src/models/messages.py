@@ -1,6 +1,6 @@
 from sqlmodel import SQLModel, Field, Column, Relationship
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, List
 import sqlalchemy.dialects.postgresql as pg
 from sqlalchemy import ForeignKey
 
@@ -19,6 +19,7 @@ class Message(SQLModel, table=True):
     )
     role: str = Field(sa_column= Column(pg.VARCHAR, nullable=False))
     content: str = Field(sa_column= Column(pg.TEXT, nullable=False))
+    image_urls: Optional[List[str]] = Field(default=None, sa_column=Column(pg.JSONB, nullable=True))
     created_at: datetime = Field(sa_column= Column(pg.TIMESTAMP, default=datetime.now))
 
     # Many-to-One: Message -> Conversation

@@ -3,6 +3,7 @@ import os
 # Add src to path for absolute imports to run the server
 sys.path.insert(0, os.path.dirname(__file__))
 
+# pyrefly: ignore [missing-import]
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from db.main import init_db
@@ -16,7 +17,8 @@ from routers import (
     conversations_api,
     users_api,
     messages_api,
-    auth_api
+    auth_api,
+    s3_api
 )
 
 @asynccontextmanager
@@ -48,3 +50,4 @@ app.include_router(auth_api.auth_router)
 app.include_router(users_api.user_router)
 app.include_router(conversations_api.conv_router)
 app.include_router(messages_api.messages_router)
+app.include_router(s3_api.s3_router)
