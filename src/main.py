@@ -12,6 +12,7 @@ from utils.middleware import setup_middleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from fastapi.staticfiles import StaticFiles
 from routers import (
     base_api,
     conversations_api,
@@ -51,3 +52,8 @@ app.include_router(users_api.user_router)
 app.include_router(conversations_api.conv_router)
 app.include_router(messages_api.messages_router)
 app.include_router(s3_api.s3_router)
+
+
+# Mount the UI folder so it can be served along with the API (Important for ngrok!)
+ui_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "UI"))
+app.mount("/", StaticFiles(directory=ui_dir, html=True), name="ui")

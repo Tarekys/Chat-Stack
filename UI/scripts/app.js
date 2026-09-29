@@ -5,6 +5,7 @@
         userData: "chatstack.userData"
     };
 
+    // ─── State ───────────────────────────────────────
     const state = {
         accessToken: localStorage.getItem(STORAGE_KEYS.accessToken) || "",
         refreshToken: localStorage.getItem(STORAGE_KEYS.refreshToken) || "",
@@ -13,9 +14,12 @@
         filteredConversations: [],
         activeConversation: null,
         messages: [],
-        passwordResetToken: ""
+        passwordResetToken: "",
+        pendingImages: [],
+        lastLoginEmail: ""
     };
 
+    // ─── DOM References ───────────────────────────────
     const elements = {
         authScreen: document.getElementById("authScreen"),
         verificationScreen: document.getElementById("verificationScreen"),
@@ -28,10 +32,10 @@
         authEyebrow: document.getElementById("authEyebrow"),
         authTitle: document.getElementById("authTitle"),
         forgotPasswordButton: document.getElementById("forgotPasswordButton"),
+        resendVerificationBtnLogin: document.getElementById("resendVerificationBtnLogin"),
         passwordResetRequestForm: document.getElementById("passwordResetRequestForm"),
         passwordResetConfirmForm: document.getElementById("passwordResetConfirmForm"),
         verifiedGoLogin: document.getElementById("verifiedGoLogin"),
-        openResendPage: document.getElementById("openResendPage"),
         composerForm: document.getElementById("composerForm"),
         messageInput: document.getElementById("messageInput"),
         conversationList: document.getElementById("conversationList"),
@@ -45,11 +49,19 @@
         userAvatar: document.getElementById("userAvatar"),
         verificationHint: document.getElementById("verificationHint"),
         chatTitle: document.getElementById("chatTitle"),
-        chatSubtitle: document.getElementById("chatSubtitle")
+        chatSubtitle: document.getElementById("chatSubtitle"),
+        imageFileInput: document.getElementById("imageFileInput"),
+        attachImageBtn: document.getElementById("attachImageBtn"),
+        imagePreviewStrip: document.getElementById("imagePreviewStrip"),
+        sendButton: document.getElementById("sendButton"),
+        imageLightbox: document.getElementById("imageLightbox"),
+        lightboxImage: document.getElementById("lightboxImage"),
+        closeLightboxBtn: document.getElementById("closeLightboxBtn")
     };
 
     init();
 
+    // ─── Init ─────────────────────────────────────────
     async function init() {
         bindEvents();
 
@@ -68,16 +80,29 @@
                 persistUserOnly();
                 showChatScreen();
                 hydrateSidebarUser();
-                await loadConversations();
+                await loadConversations(false);
                 return;
             } catch (error) {
-                clearSession();
+                // Only clear session on auth errors (401), not network failures
+                if (error.status === 401 || error.status === 403) {
+                    clearSession();
+                } else {
+                    // Network error or server down — keep token, show chat with cached data
+                    if (state.user) {
+                        showChatScreen();
+                        hydrateSidebarUser();
+                        showBox(elements.chatMessage, "Connection issue. Some features may be unavailable.", "error");
+                        return;
+                    }
+                    clearSession();
+                }
             }
         }
 
         showAuthScreen();
     }
 
+    // ─── Event Binding ────────────────────────────────
     function bindEvents() {
         document.querySelectorAll("[data-auth-tab]").forEach((button) => {
             button.addEventListener("click", () => switchAuthTab(button.dataset.authTab));
@@ -88,30 +113,119 @@
         elements.forgotPasswordButton.addEventListener("click", () => showPasswordRecovery("request"));
         elements.passwordResetRequestForm.addEventListener("submit", onPasswordResetRequestSubmit);
         elements.passwordResetConfirmForm.addEventListener("submit", onPasswordResetConfirmSubmit);
+
         document.querySelectorAll("[data-return-login]").forEach((button) => {
             button.addEventListener("click", () => switchAuthTab("login"));
         });
+
         elements.verifiedGoLogin.addEventListener("click", () => {
             switchAuthTab("login");
             showAuthScreen();
         });
-        elements.openResendPage.addEventListener("click", () => {
-            window.open(`${window.ChatStackAPI.baseUrl}/api/users/resend-verification`, "_blank");
-        });
+
+        elements.resendVerificationBtnLogin.addEventListener("click", onResendVerificationLoginClick);
+
         elements.newChatButton.addEventListener("click", onNewChat);
         elements.logoutButton.addEventListener("click", onLogout);
         elements.composerForm.addEventListener("submit", onComposerSubmit);
         elements.conversationSearch.addEventListener("input", onConversationSearch);
-        elements.messageInput.addEventListener("input", autoResizeComposer);
 
-        // Close any open conv-menu when clicking outside
-        document.addEventListener("click", (e) => {
-            if (!e.target.closest(".conversation-item__actions")) {
-                closeAllMenus();
+        elements.messageInput.addEventListener("input", autoResizeComposer);
+        elements.messageInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                elements.composerForm.requestSubmit();
             }
+        });
+
+        // Image attach
+        elements.attachImageBtn.addEventListener("click", () => elements.imageFileInput.click());
+        elements.imageFileInput.addEventListener("change", onImageFilesSelected);
+
+        // Drag & drop onto the composer
+        elements.composerForm.addEventListener("dragover", (e) => { e.preventDefault(); });
+        elements.composerForm.addEventListener("drop", (e) => {
+            e.preventDefault();
+            const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("image/"));
+            if (files.length) addImagesToQueue(files);
+        });
+
+        // Lightbox closing
+        elements.closeLightboxBtn.addEventListener("click", closeLightbox);
+        elements.imageLightbox.addEventListener("click", (e) => {
+            if (e.target === elements.imageLightbox) closeLightbox();
+        });
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") closeLightbox();
+        });
+
+        // Close menus
+        document.addEventListener("click", (e) => {
+            if (!e.target.closest(".conversation-item__actions")) closeAllMenus();
         });
     }
 
+    // ─── Image Queue ──────────────────────────────────
+    function onImageFilesSelected() {
+        const files = Array.from(elements.imageFileInput.files).filter((f) => f.type.startsWith("image/"));
+        addImagesToQueue(files);
+        elements.imageFileInput.value = "";
+    }
+
+    function addImagesToQueue(files) {
+        files.forEach((file) => {
+            const previewUrl = URL.createObjectURL(file);
+            state.pendingImages.push({ file, previewUrl });
+        });
+        renderImagePreview();
+    }
+
+    function removeImageFromQueue(index) {
+        URL.revokeObjectURL(state.pendingImages[index].previewUrl);
+        state.pendingImages.splice(index, 1);
+        renderImagePreview();
+    }
+
+    function clearImageQueue() {
+        state.pendingImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+        state.pendingImages = [];
+        renderImagePreview();
+    }
+
+    function renderImagePreview() {
+        const strip = elements.imagePreviewStrip;
+        strip.innerHTML = "";
+
+        if (!state.pendingImages.length) {
+            strip.classList.add("is-hidden");
+            elements.attachImageBtn.classList.remove("has-images");
+            return;
+        }
+
+        strip.classList.remove("is-hidden");
+        elements.attachImageBtn.classList.add("has-images");
+
+        state.pendingImages.forEach((img, index) => {
+            const item = document.createElement("div");
+            item.className = "image-preview-item";
+
+            const imgEl = document.createElement("img");
+            imgEl.src = img.previewUrl;
+            imgEl.alt = img.file.name;
+
+            const removeBtn = document.createElement("button");
+            removeBtn.className = "image-preview-remove";
+            removeBtn.type = "button";
+            removeBtn.title = "Remove image";
+            removeBtn.textContent = "✕";
+            removeBtn.addEventListener("click", () => removeImageFromQueue(index));
+
+            item.append(imgEl, removeBtn);
+            strip.appendChild(item);
+        });
+    }
+
+    // ─── Auth ─────────────────────────────────────────
     function closeAllMenus() {
         document.querySelectorAll(".conv-menu-dropdown").forEach((d) => d.remove());
         document.querySelectorAll(".conv-menu-trigger.is-active").forEach((t) => t.classList.remove("is-active"));
@@ -128,6 +242,7 @@
         elements.signupForm.classList.toggle("is-hidden", isLogin);
         elements.passwordResetRequestForm.classList.add("is-hidden");
         elements.passwordResetConfirmForm.classList.add("is-hidden");
+        elements.resendVerificationBtnLogin.classList.add("is-hidden");
         elements.authEyebrow.textContent = "Welcome back";
         elements.authTitle.textContent = "Log in or sign up";
         clearBox(elements.authMessage);
@@ -147,14 +262,11 @@
     async function onPasswordResetRequestSubmit(event) {
         event.preventDefault();
         clearBox(elements.authMessage);
-
         const formData = new FormData(elements.passwordResetRequestForm);
-        const email = formData.get("email");
-
         try {
             setFormBusy(elements.passwordResetRequestForm, true);
-            const response = await window.ChatStackAPI.requestPasswordReset(email);
-            showBox(elements.authMessage, response.message || "Please check your email for a password reset link.", "success");
+            const response = await window.ChatStackAPI.requestPasswordReset(formData.get("email"));
+            showBox(elements.authMessage, response.message || "Check your email for a reset link.", "success");
         } catch (error) {
             showBox(elements.authMessage, error.message, "error");
         } finally {
@@ -165,17 +277,15 @@
     async function onPasswordResetConfirmSubmit(event) {
         event.preventDefault();
         clearBox(elements.authMessage);
-
         const formData = new FormData(elements.passwordResetConfirmForm);
         const passwords = Object.fromEntries(formData.entries());
-
         try {
             setFormBusy(elements.passwordResetConfirmForm, true);
             const response = await window.ChatStackAPI.confirmPasswordReset(state.passwordResetToken, passwords);
             state.passwordResetToken = "";
             window.history.replaceState({}, document.title, window.location.pathname);
             switchAuthTab("login");
-            showBox(elements.authMessage, response.message || "Password reset successfully. You can now log in.", "success");
+            showBox(elements.authMessage, response.message || "Password updated. You can now log in.", "success");
             elements.passwordResetConfirmForm.reset();
         } catch (error) {
             showBox(elements.authMessage, error.message, "error");
@@ -187,23 +297,38 @@
     async function onLoginSubmit(event) {
         event.preventDefault();
         clearBox(elements.authMessage);
-
-        const formData = new FormData(elements.loginForm);
-        const payload = Object.fromEntries(formData.entries());
-
+        const payload = Object.fromEntries(new FormData(elements.loginForm).entries());
         try {
             setFormBusy(elements.loginForm, true);
             const response = await window.ChatStackAPI.login(payload);
-
             state.accessToken = response.access_token;
             state.refreshToken = response.refresh_token || "";
             state.user = await window.ChatStackAPI.me(state.accessToken);
-
             persistSession();
             showChatScreen();
             hydrateSidebarUser();
-            await loadConversations();
+            await loadConversations(false);
             elements.loginForm.reset();
+        } catch (error) {
+            showBox(elements.authMessage, error.message, "error");
+            if (error.message.toLowerCase().includes("not verified")) {
+                state.lastLoginEmail = payload.email;
+                elements.resendVerificationBtnLogin.classList.remove("is-hidden");
+            } else {
+                elements.resendVerificationBtnLogin.classList.add("is-hidden");
+            }
+        } finally {
+            setFormBusy(elements.loginForm, false);
+        }
+    }
+
+    async function onResendVerificationLoginClick() {
+        if (!state.lastLoginEmail) return;
+        try {
+            setFormBusy(elements.loginForm, true);
+            await window.ChatStackAPI.resendVerification(state.lastLoginEmail);
+            showBox(elements.authMessage, "Verification email sent. Please check your inbox.", "success");
+            elements.resendVerificationBtnLogin.classList.add("is-hidden");
         } catch (error) {
             showBox(elements.authMessage, error.message, "error");
         } finally {
@@ -214,16 +339,13 @@
     async function onSignupSubmit(event) {
         event.preventDefault();
         clearBox(elements.authMessage);
-
-        const formData = new FormData(elements.signupForm);
-        const payload = Object.fromEntries(formData.entries());
-
+        const payload = Object.fromEntries(new FormData(elements.signupForm).entries());
         try {
             setFormBusy(elements.signupForm, true);
             await window.ChatStackAPI.signup(payload);
             elements.signupForm.reset();
             elements.verificationHint.textContent =
-                `We sent a verification link to ${payload.email}. Open your email, click the verification link, then come back and log in.`;
+                `We sent a verification link to ${payload.email}. Click it, then come back and log in.`;
             showVerificationScreen();
         } catch (error) {
             showBox(elements.authMessage, error.message, "error");
@@ -234,18 +356,15 @@
 
     async function onLogout() {
         try {
-            if (state.accessToken) {
-                await window.ChatStackAPI.logout(state.accessToken);
-            }
-        } catch (error) {
-            // Ignore logout transport errors and clear local session anyway.
-        } finally {
+            if (state.accessToken) await window.ChatStackAPI.logout(state.accessToken);
+        } catch (_) { /* ignore */ } finally {
             clearSession();
             resetChatState();
             showAuthScreen();
         }
     }
 
+    // ─── Conversations ────────────────────────────────
     async function onNewChat() {
         try {
             clearBox(elements.chatMessage);
@@ -257,70 +376,27 @@
         }
     }
 
-    async function onComposerSubmit(event) {
-        event.preventDefault();
-        clearBox(elements.chatMessage);
-
-        const content = elements.messageInput.value.trim();
-        if (!content) {
-            return;
-        }
-
-        try {
-            setComposerBusy(true);
-
-            if (!state.activeConversation) {
-                const title = buildConversationTitle(content);
-                const conversation = await createConversationForUser(title);
-                await setActiveConversation(conversation.id);
-            }
-
-            appendLocalMessage("user", content);
-            appendLocalLoading();
-            elements.messageInput.value = "";
-            autoResizeComposer();
-
-            const assistantMessage = await window.ChatStackAPI.sendMessage({
-                conversation_id: state.activeConversation.id,
-                content
-            });
-
-            removeLoadingMessage();
-            state.messages.push(assistantMessage);
-            renderMessages();
-            await loadConversations(false);
-        } catch (error) {
-            removeLoadingMessage();
-            showBox(elements.chatMessage, error.message, "error");
-        } finally {
-            setComposerBusy(false);
-        }
-    }
-
     function onConversationSearch() {
         const query = elements.conversationSearch.value.trim().toLowerCase();
-        state.filteredConversations = state.conversations.filter((conversation) =>
-            (conversation.title || "Untitled chat").toLowerCase().includes(query)
+        state.filteredConversations = state.conversations.filter((c) =>
+            (c.title || "Untitled chat").toLowerCase().includes(query)
         );
         renderConversations();
     }
 
     async function loadConversations(selectLatest = true) {
-        if (!state.accessToken || !state.user) {
-            return;
-        }
-
+        if (!state.accessToken || !state.user) return;
         const conversations = await window.ChatStackAPI.getConversations(state.accessToken);
-        const sortedConversations = conversations
-            .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
-
-        state.conversations = sortedConversations;
-        state.filteredConversations = sortedConversations;
+        const sorted = conversations.sort(
+            (a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at)
+        );
+        state.conversations = sorted;
+        state.filteredConversations = sorted;
         renderConversations();
 
-        if (selectLatest && sortedConversations.length > 0) {
-            await setActiveConversation(sortedConversations[0].id);
-        } else if (sortedConversations.length === 0) {
+        if (selectLatest && sorted.length > 0) {
+            await setActiveConversation(sorted[0].id);
+        } else if (!state.activeConversation) {
             state.activeConversation = null;
             state.messages = [];
             renderMessages();
@@ -328,13 +404,10 @@
     }
 
     async function setActiveConversation(conversationId) {
-        const conversation = state.conversations.find((item) => item.id === conversationId);
-        if (!conversation) {
-            return;
-        }
-
+        const conversation = state.conversations.find((c) => c.id === conversationId);
+        if (!conversation) return;
         state.activeConversation = conversation;
-        state.messages = await window.ChatStackAPI.getConversationMessages(conversationId);
+        state.messages = await window.ChatStackAPI.getConversationMessages(state.accessToken, conversationId);
         renderConversations();
         renderMessages();
         updateChatHeader();
@@ -346,66 +419,40 @@
             title,
             user_id: userId
         });
-
         state.conversations = [conversation, ...state.conversations];
         state.filteredConversations = [conversation, ...state.filteredConversations];
         return conversation;
     }
 
     async function onRenameConversation(conversationId) {
-        const conversation = state.conversations.find((item) => item.id === conversationId);
-        if (!conversation) {
-            return;
-        }
-
+        const conversation = state.conversations.find((c) => c.id === conversationId);
+        if (!conversation) return;
         const nextTitle = window.prompt("Enter a new conversation title", conversation.title || "");
-        if (nextTitle === null) {
-            return;
-        }
-
-        const normalizedTitle = nextTitle.trim();
-        if (!normalizedTitle) {
-            showBox(elements.chatMessage, "Conversation title cannot be empty.", "error");
-            return;
-        }
-
+        if (nextTitle === null) return;
+        const normalized = nextTitle.trim();
+        if (!normalized) { showBox(elements.chatMessage, "Title cannot be empty.", "error"); return; }
         try {
             clearBox(elements.chatMessage);
-            const updatedConversation = await window.ChatStackAPI.updateConversation(
-                state.accessToken,
-                conversationId,
-                { title: normalizedTitle }
-            );
-
-            replaceConversationInState(updatedConversation);
+            const updated = await window.ChatStackAPI.updateConversation(state.accessToken, conversationId, { title: normalized });
+            replaceConversationInState(updated);
             if (state.activeConversation && state.activeConversation.id === conversationId) {
-                state.activeConversation = updatedConversation;
+                state.activeConversation = updated;
                 updateChatHeader();
             }
             renderConversations();
-            showBox(elements.chatMessage, "Conversation updated successfully.", "success");
         } catch (error) {
             showBox(elements.chatMessage, error.message, "error");
         }
     }
 
     async function onDeleteConversation(conversationId) {
-        const conversation = state.conversations.find((item) => item.id === conversationId);
-        if (!conversation) {
-            return;
-        }
-
-        const confirmed = window.confirm(`Delete conversation "${conversation.title || "Untitled chat"}"?`);
-        if (!confirmed) {
-            return;
-        }
-
+        const conversation = state.conversations.find((c) => c.id === conversationId);
+        if (!conversation) return;
+        if (!window.confirm(`Delete "${conversation.title || "Untitled chat"}"?`)) return;
         try {
             clearBox(elements.chatMessage);
             await window.ChatStackAPI.deleteConversation(state.accessToken, conversationId);
-
             removeConversationFromState(conversationId);
-
             if (state.activeConversation && state.activeConversation.id === conversationId) {
                 if (state.conversations.length > 0) {
                     await setActiveConversation(state.conversations[0].id);
@@ -413,31 +460,94 @@
                     state.activeConversation = null;
                     state.messages = [];
                     renderMessages();
+                    updateChatHeader();
                 }
             } else {
                 renderConversations();
             }
-
-            showBox(elements.chatMessage, "Conversation deleted successfully.", "success");
         } catch (error) {
             showBox(elements.chatMessage, error.message, "error");
         }
     }
 
-    function replaceConversationInState(updatedConversation) {
-        state.conversations = state.conversations.map((conversation) =>
-            conversation.id === updatedConversation.id ? updatedConversation : conversation
-        );
-        state.filteredConversations = state.filteredConversations.map((conversation) =>
-            conversation.id === updatedConversation.id ? updatedConversation : conversation
-        );
+    // ─── Message Sending ──────────────────────────────
+    async function onComposerSubmit(event) {
+        event.preventDefault();
+        clearBox(elements.chatMessage);
+
+        const content = elements.messageInput.value.trim();
+        const hasImages = state.pendingImages.length > 0;
+
+        if (!content && !hasImages) return;
+
+        try {
+            setComposerBusy(true);
+
+            // Auto-create conversation if none active
+            if (!state.activeConversation) {
+                const title = buildConversationTitle(content || "Image message");
+                const conversation = await createConversationForUser(title);
+                await setActiveConversation(conversation.id);
+            }
+
+            // Snapshot pending images for this send
+            const imagesToSend = [...state.pendingImages];
+            const previewUrls = imagesToSend.map((img) => img.previewUrl);
+
+            // Clear composer
+            elements.messageInput.value = "";
+            autoResizeComposer();
+            clearImageQueue();
+
+            // Optimistic user message
+            appendLocalMessage("user", content || "", previewUrls);
+            appendLocalLoading();
+
+            // 1. Upload images to S3 (parallel)
+            let image_urls = [];
+            if (imagesToSend.length > 0) {
+                const uploadResults = await Promise.all(
+                    imagesToSend.map((img) => window.ChatStackAPI.uploadImage(state.accessToken, img.file))
+                );
+                image_urls = uploadResults.map((r) => r.url);
+            }
+
+            // 2. Send message to AI
+            const assistantMessage = await window.ChatStackAPI.sendMessage(state.accessToken, {
+                conversation_id: state.activeConversation.id,
+                content: content || " ",
+                image_urls: image_urls.length > 0 ? image_urls : undefined
+            });
+
+            removeLoadingMessage();
+
+            // Replace the optimistic user message (which used blob previewUrls)
+            // with real S3 URLs so images don't break after the blob is revoked
+            if (image_urls.length > 0) {
+                const userMsgIndex = state.messages.findLastIndex(
+                    (m) => m.role === "user" && m._previewUrls && m._previewUrls.length > 0
+                );
+                if (userMsgIndex !== -1) {
+                    state.messages[userMsgIndex] = {
+                        ...state.messages[userMsgIndex],
+                        image_urls: image_urls,
+                        _previewUrls: undefined
+                    };
+                }
+            }
+
+            state.messages.push(assistantMessage);
+            renderMessages();
+            await loadConversations(false);
+        } catch (error) {
+            removeLoadingMessage();
+            showBox(elements.chatMessage, error.message, "error");
+        } finally {
+            setComposerBusy(false);
+        }
     }
 
-    function removeConversationFromState(conversationId) {
-        state.conversations = state.conversations.filter((conversation) => conversation.id !== conversationId);
-        state.filteredConversations = state.filteredConversations.filter((conversation) => conversation.id !== conversationId);
-    }
-
+    // ─── Render ───────────────────────────────────────
     function renderConversations() {
         const list = state.filteredConversations;
         elements.conversationList.innerHTML = "";
@@ -445,6 +555,7 @@
         if (!list.length) {
             const empty = document.createElement("div");
             empty.className = "status-box";
+            empty.style.fontSize = "13px";
             empty.textContent = "No conversations yet.";
             elements.conversationList.appendChild(empty);
             return;
@@ -454,7 +565,6 @@
             const item = document.createElement("div");
             item.className = `conversation-item${state.activeConversation && state.activeConversation.id === conversation.id ? " is-active" : ""}`;
 
-            // ── Main clickable area ──
             const button = document.createElement("button");
             button.type = "button";
             button.className = "conversation-item__main";
@@ -467,7 +577,6 @@
                 await setActiveConversation(conversation.id);
             });
 
-            // ── 3-dot trigger ──
             const actions = document.createElement("div");
             actions.className = "conversation-item__actions";
 
@@ -480,12 +589,10 @@
 
             trigger.addEventListener("click", (event) => {
                 event.stopPropagation();
-
                 const isAlreadyOpen = trigger.classList.contains("is-active");
                 closeAllMenus();
                 if (isAlreadyOpen) return;
 
-                // Build dropdown
                 const dropdown = document.createElement("div");
                 dropdown.className = "conv-menu-dropdown";
 
@@ -514,12 +621,10 @@
 
                 dropdown.append(renameItem, separator, deleteItem);
 
-                // Position dropdown using fixed coords so it never clips
                 const rect = trigger.getBoundingClientRect();
                 dropdown.style.top = `${rect.bottom + 6}px`;
                 dropdown.style.left = `${rect.left - 140}px`;
                 document.body.appendChild(dropdown);
-
                 trigger.classList.add("is-active");
                 actions.classList.add("is-open");
             });
@@ -545,7 +650,41 @@
 
             const bubble = document.createElement("div");
             bubble.className = "message-bubble";
-            bubble.textContent = message.content;
+
+            // Show images if present
+            const urls = message.image_urls || message._previewUrls;
+            if (urls && urls.length > 0) {
+                const imagesDiv = document.createElement("div");
+                imagesDiv.className = "message-images";
+                urls.forEach((url) => {
+                    const img = document.createElement("img");
+                    img.src = url;
+                    img.className = "message-image";
+                    img.alt = "Attached image";
+                    img.referrerPolicy = "no-referrer";
+                    img.addEventListener("click", () => openLightbox(url));
+                    img.onerror = () => {
+                        img.style.display = "none";
+                        const errSpan = document.createElement("span");
+                        errSpan.className = "image-load-error";
+                        errSpan.textContent = "⚠ Image unavailable";
+                        imagesDiv.appendChild(errSpan);
+                    };
+                    imagesDiv.appendChild(img);
+                });
+                bubble.appendChild(imagesDiv);
+            }
+
+            if (message.content && message.content.trim()) {
+                const textNode = document.createElement("div");
+                textNode.className = "message-text";
+                textNode.innerHTML = renderMarkdown(message.content);
+                bubble.appendChild(textNode);
+            }
+
+            if (message.isLoading) {
+                bubble.classList.add("loading-dots");
+            }
 
             row.appendChild(bubble);
             elements.messagesContainer.appendChild(row);
@@ -554,23 +693,16 @@
         elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
     }
 
-    function appendLocalMessage(role, content) {
-        state.messages.push({ role, content });
+    function appendLocalMessage(role, content, previewUrls = []) {
+        state.messages.push({ role, content, _previewUrls: previewUrls });
         renderMessages();
     }
 
     function appendLocalLoading() {
-        state.messages.push({
-            role: "assistant",
-            content: "Thinking",
-            isLoading: true
-        });
+        state.messages.push({ role: "assistant", content: "Thinking", isLoading: true });
         renderMessages();
-
         const lastBubble = elements.messagesContainer.querySelector(".message-row:last-child .message-bubble");
-        if (lastBubble) {
-            lastBubble.classList.add("loading-dots");
-        }
+        if (lastBubble) lastBubble.classList.add("loading-dots");
     }
 
     function removeLoadingMessage() {
@@ -580,29 +712,47 @@
         renderMessages();
     }
 
+    // ─── Header ───────────────────────────────────────
     function updateChatHeader() {
-        if (state.activeConversation) {
+        const header = document.querySelector(".chat-header");
+        if (state.activeConversation && state.messages.length > 0) {
             elements.chatTitle.textContent = state.activeConversation.title || "Conversation";
-            elements.chatSubtitle.textContent = "Continue your conversation with the assistant.";
+            elements.chatSubtitle.textContent = "";
+            header.classList.add("is-compact");
+        } else if (state.activeConversation) {
+            elements.chatTitle.textContent = state.activeConversation.title || "New conversation";
+            elements.chatSubtitle.textContent = "Send a message to get started.";
+            header.classList.remove("is-compact");
         } else {
-            elements.chatTitle.textContent = "What’s on your mind today?";
+            elements.chatTitle.textContent = "Where should we begin?";
             elements.chatSubtitle.textContent = "Start a new conversation or continue an existing one.";
+            header.classList.remove("is-compact");
         }
     }
 
-    function hydrateSidebarUser() {
-        if (!state.user) {
-            return;
-        }
+    // ─── Lightbox ─────────────────────────────────────
+    function openLightbox(url) {
+        elements.lightboxImage.referrerPolicy = "no-referrer";
+        elements.lightboxImage.src = url;
+        elements.imageLightbox.classList.remove("is-hidden");
+    }
 
+    function closeLightbox() {
+        elements.imageLightbox.classList.add("is-hidden");
+        setTimeout(() => { elements.lightboxImage.src = ""; }, 200);
+    }
+
+    // ─── Sidebar ──────────────────────────────────────
+    function hydrateSidebarUser() {
+        if (!state.user) return;
         const username = state.user.username || state.user.email || "User";
         const email = state.user.email || "";
-
         elements.sidebarUsername.textContent = username;
         elements.sidebarEmail.textContent = email;
         elements.userAvatar.textContent = username.charAt(0).toUpperCase();
     }
 
+    // ─── Screens ──────────────────────────────────────
     function showAuthScreen() {
         elements.authScreen.classList.remove("is-hidden");
         elements.verificationScreen.classList.add("is-hidden");
@@ -621,23 +771,35 @@
         elements.chatScreen.classList.remove("is-hidden");
     }
 
+    // ─── Composer Helpers ─────────────────────────────
     function setFormBusy(form, busy) {
-        form.querySelectorAll("input, button").forEach((element) => {
-            element.disabled = busy;
-        });
+        form.querySelectorAll("input, button").forEach((el) => { el.disabled = busy; });
     }
 
     function setComposerBusy(busy) {
         elements.messageInput.disabled = busy;
-        document.getElementById("sendButton").disabled = busy;
+        elements.sendButton.disabled = busy;
+        elements.attachImageBtn.disabled = busy;
     }
 
     function autoResizeComposer() {
-        const textarea = elements.messageInput;
-        textarea.style.height = "auto";
-        textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
+        const ta = elements.messageInput;
+        ta.style.height = "auto";
+        ta.style.height = `${Math.min(ta.scrollHeight, 180)}px`;
     }
 
+    // ─── State Helpers ────────────────────────────────
+    function replaceConversationInState(updated) {
+        state.conversations = state.conversations.map((c) => c.id === updated.id ? updated : c);
+        state.filteredConversations = state.filteredConversations.map((c) => c.id === updated.id ? updated : c);
+    }
+
+    function removeConversationFromState(conversationId) {
+        state.conversations = state.conversations.filter((c) => c.id !== conversationId);
+        state.filteredConversations = state.filteredConversations.filter((c) => c.id !== conversationId);
+    }
+
+    // ─── UI Helpers ───────────────────────────────────
     function showBox(target, text, kind) {
         target.textContent = text;
         target.classList.remove("is-hidden", "is-error", "is-success");
@@ -652,14 +814,18 @@
 
     function buildConversationTitle(content) {
         const normalized = content.replace(/\s+/g, " ").trim();
-        return normalized.length > 32 ? `${normalized.slice(0, 32)}...` : normalized;
+        return normalized.length > 36 ? `${normalized.slice(0, 36)}...` : normalized;
     }
 
     function formatDate(value) {
-        if (!value) {
-            return "Just now";
-        }
-        return new Date(value).toLocaleString();
+        if (!value) return "Just now";
+        const d = new Date(value);
+        const now = new Date();
+        const diff = now - d;
+        if (diff < 60000) return "Just now";
+        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+        if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+        return d.toLocaleDateString();
     }
 
     function clearSession() {
@@ -686,25 +852,19 @@
         state.filteredConversations = [];
         state.activeConversation = null;
         state.messages = [];
+        clearImageQueue();
         elements.conversationList.innerHTML = "";
         elements.messageInput.value = "";
         elements.conversationSearch.value = "";
         renderMessages();
         clearBox(elements.chatMessage);
+        updateChatHeader();
     }
 
     function readStoredJson(key) {
-        const rawValue = localStorage.getItem(key);
-        if (!rawValue) {
-            return null;
-        }
-
-        try {
-            return JSON.parse(rawValue);
-        } catch (error) {
-            localStorage.removeItem(key);
-            return null;
-        }
+        const raw = localStorage.getItem(key);
+        if (!raw) return null;
+        try { return JSON.parse(raw); } catch { localStorage.removeItem(key); return null; }
     }
 
     function escapeHtml(value) {
@@ -714,5 +874,21 @@
             .replaceAll(">", "&gt;")
             .replaceAll('"', "&quot;")
             .replaceAll("'", "&#39;");
+    }
+
+    function renderMarkdown(text) {
+        // Escape HTML first
+        let escaped = escapeHtml(text);
+        // Code blocks ```...```
+        escaped = escaped.replace(/```([\s\S]*?)```/g, "<pre><code>$1</code></pre>");
+        // Inline code `...`
+        escaped = escaped.replace(/`([^`]+)`/g, "<code>$1</code>");
+        // Bold **...**
+        escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        // Italic *...*
+        escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+        // Line breaks
+        escaped = escaped.replace(/\n/g, "<br>");
+        return escaped;
     }
 })();

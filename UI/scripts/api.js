@@ -36,10 +36,18 @@
             : await response.text();
 
         if (!response.ok) {
-            const message =
-                typeof payload === "object" && payload !== null
-                    ? payload.message || payload.detail || "Request failed"
-                    : "Request failed";
+            let message = "Request failed";
+            if (typeof payload === "object" && payload !== null) {
+                if (Array.isArray(payload.detail)) {
+                    message = payload.detail.map(e => e.msg || "Invalid input").join(" | ");
+                } else if (typeof payload.detail === "string") {
+                    message = payload.detail;
+                } else if (payload.message) {
+                    message = payload.message;
+                }
+            } else if (typeof payload === "string" && payload.trim()) {
+                message = payload;
+            }
 
             const error = new Error(message);
             error.status = response.status;
@@ -52,72 +60,80 @@
 
     window.ChatStackAPI = {
         baseUrl: API_BASE_URL,
+
         signup(userData) {
-            return request("/api/users/signup", {
-                method: "POST",
-                body: userData
-            });
+            return request("/api/users/signup", { method: "POST", body: userData });
         },
+
         login(credentials) {
-            return request("/api/users/login", {
-                method: "POST",
-                body: credentials
-            });
+            return request("/api/users/login", { method: "POST", body: credentials });
         },
+
         requestPasswordReset(email) {
-            return request("/api/auth/reset_password", {
-                method: "POST",
-                body: { email }
-            });
+            return request("/api/auth/reset_password", { method: "POST", body: { email } });
         },
+
+        resendVerification(email) {
+            return request("/api/users/resend-verification", { method: "POST", body: { email } });
+        },
+
         confirmPasswordReset(token, passwords) {
             return request(`/api/auth/reset_password_confirm/${encodeURIComponent(token)}`, {
                 method: "POST",
                 body: passwords
             });
         },
+
         me(token) {
-            return request("/api/users/me", {
-                token
-            });
+            return request("/api/users/me", { token });
         },
+
         logout(token) {
-            return request("/api/users/logout", {
-                token
-            });
+            return request("/api/users/logout", { method: "POST", token });
         },
+
         getConversations(token) {
-            return request("/api/conversations/me", {
-                token
-            });
+            return request("/api/conversations/me", { token });
         },
+
         createConversation(token, payload) {
-            return request("/api/conversations/", {
-                method: "POST",
-                token,
-                body: payload
-            });
+            return request("/api/conversations/", { method: "POST", token, body: payload });
         },
+
         updateConversation(token, conversationId, payload) {
             return request(`/api/conversations/${conversationId}`, {
-                method: "PUT",
+                method: "PUT", token, body: payload
+            });
+        },
+
+        deleteConversation(token, conversationId) {
+            return request(`/api/conversations/${conversationId}`, { method: "DELETE", token });
+        },
+
+        getConversationMessages(token, conversationId) {
+            return request(`/api/messages/conversation/${conversationId}`, { token });
+        },
+
+        sendMessage(token, payload) {
+            return request("/api/messages/", {
+                method: "POST",
                 token,
                 body: payload
             });
         },
-        deleteConversation(token, conversationId) {
-            return request(`/api/conversations/${conversationId}`, {
-                method: "DELETE",
-                token
-            });
-        },
-        getConversationMessages(conversationId) {
-            return request(`/api/messages/conversation/${conversationId}`);
-        },
-        sendMessage(payload) {
-            return request("/api/messages/", {
+
+        /**
+         * Upload a single image file to S3.
+         * Returns { filename, key, url } where url is a Presigned URL.
+         */
+        uploadImage(token, file) {
+            const formData = new FormData();
+            formData.append("file", file);
+            return request("/api/s3_storage/upload", {
                 method: "POST",
-                body: payload
+                token,
+                body: formData,
+                form: true
             });
         }
     };

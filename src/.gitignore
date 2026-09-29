@@ -205,5 +205,6 @@ __marimo__/
 # Test files
 TEST
 docs
+ngrok.exe
 
 alembic.ini

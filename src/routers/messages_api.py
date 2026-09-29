@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 from typing import List
+from urllib.parse import urlparse, unquote
 
 from db.main import get_session
 from controllers.messages_ctrl import MessageCtrl
@@ -10,6 +11,7 @@ from schemas.messages_schema import (
 )
 from utils.auth.dependencies import get_current_user, RoleChecker
 from utils.errors import NoPermission
+from utils.s3_storage import storage
 from models import User
 
 messages_router = APIRouter(
@@ -50,6 +52,22 @@ async def get_chat_history(
         raise NoPermission()
 
     history = await messages_ctrl.get_messages_for_conversation(conversation_id, session)
+
+    def refresh_url(url: str) -> str:
+        """Re-generate a fresh presigned URL from a stored one to avoid expiry."""
+        try:
+            parsed = urlparse(url)
+            parts = parsed.path.lstrip("/").split("/", 1)
+            if len(parts) == 2:
+                return storage.generate_url(unquote(parts[1]))
+        except Exception:
+            pass
+        return url
+
+    for msg in history:
+        if msg.image_urls:
+            msg.image_urls = [refresh_url(u) for u in msg.image_urls]
+
     return history
 
 

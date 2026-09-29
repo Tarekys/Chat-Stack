@@ -11,6 +11,7 @@ A FastAPI-based chat application with AI-powered conversations, memory managemen
 - **Sliding Window Summarization**: Automatic conversation summarization to maintain context
 - **Token Tracking**: Monitor token usage per conversation
 - **Memory Management**: Persistent conversation history with summaries
+- **Image Support**: S3-compatible cloud storage (IDrive e2) for uploading and interacting with images
 
 ## Tech Stack
 
@@ -19,6 +20,7 @@ A FastAPI-based chat application with AI-powered conversations, memory managemen
 - **Authentication**: JWT tokens with role hierarchy
 - **Email**: Gmail SMTP for verification
 - **AI**: OpenAI / Groq API integration
+- **Storage**: S3-compatible API (boto3) for media
 - **Migrations**: Alembic
 
 ## Installation & Setup

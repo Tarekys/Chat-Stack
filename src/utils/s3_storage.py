@@ -15,7 +15,8 @@ class StorageService:
             aws_secret_access_key = settings.S3_SECRET_ACCESS_KEY,
             region_name = settings.S3_REGION,
             config = Config(
-                signature_version = "s3v4"
+                signature_version = "s3v4",
+                s3={'addressing_style': 'path'}
             ),
         )
 
@@ -41,6 +42,7 @@ class StorageService:
                 "Bucket": self.bucket,
                 "Key": object_key
             },
+            ExpiresIn=604800  # 7 days (Maximum allowed by AWS S3 signature v4)
         )
 
         return url
