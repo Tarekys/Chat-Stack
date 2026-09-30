@@ -18,6 +18,7 @@ class Conversation(SQLModel, table=True):
         sa_column=Column(pg.UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     )
     title: str = Field(default=None)
+    is_pinned: bool = Field(default=False)
     is_deleted: bool = Field(default=False)
     summary: Optional[str] = Field(default=None, sa_column=Column(pg.TEXT, nullable=True))
 

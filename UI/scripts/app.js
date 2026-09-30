@@ -47,6 +47,7 @@
         sidebarUsername: document.getElementById("sidebarUsername"),
         sidebarEmail: document.getElementById("sidebarEmail"),
         userAvatar: document.getElementById("userAvatar"),
+        railUserAvatar: document.getElementById("railUserAvatar"),
         verificationHint: document.getElementById("verificationHint"),
         chatTitle: document.getElementById("chatTitle"),
         chatSubtitle: document.getElementById("chatSubtitle"),
@@ -56,7 +57,16 @@
         sendButton: document.getElementById("sendButton"),
         imageLightbox: document.getElementById("imageLightbox"),
         lightboxImage: document.getElementById("lightboxImage"),
-        closeLightboxBtn: document.getElementById("closeLightboxBtn")
+        closeLightboxBtn: document.getElementById("closeLightboxBtn"),
+        sidebar: document.getElementById("sidebar"),
+        closeSidebarBtn: document.getElementById("closeSidebarBtn"),
+        openSidebarBtn: document.getElementById("openSidebarBtn"),
+        railSearchBtn: document.getElementById("railSearchBtn"),
+        railNewChatButton: document.getElementById("railNewChatButton"),
+        pinnedConversationList: document.getElementById("pinnedConversationList"),
+        pinnedSection: document.getElementById("pinnedSection"),
+        searchToggleBtn: document.getElementById("searchToggleBtn"),
+        searchWrapper: document.getElementById("searchWrapper")
     };
 
     init();
@@ -126,6 +136,7 @@
         elements.resendVerificationBtnLogin.addEventListener("click", onResendVerificationLoginClick);
 
         elements.newChatButton.addEventListener("click", onNewChat);
+        elements.railNewChatButton.addEventListener("click", onNewChat);
         elements.logoutButton.addEventListener("click", onLogout);
         elements.composerForm.addEventListener("submit", onComposerSubmit);
         elements.conversationSearch.addEventListener("input", onConversationSearch);
@@ -137,6 +148,37 @@
                 elements.composerForm.requestSubmit();
             }
         });
+
+        // Sidebar toggles
+        if (elements.closeSidebarBtn) {
+            elements.closeSidebarBtn.addEventListener("click", () => {
+                elements.sidebar.classList.add("is-collapsed");
+                elements.chatScreen.classList.add("has-collapsed-sidebar");
+            });
+        }
+        if (elements.openSidebarBtn) {
+            elements.openSidebarBtn.addEventListener("click", () => {
+                elements.sidebar.classList.remove("is-collapsed");
+                elements.chatScreen.classList.remove("has-collapsed-sidebar");
+            });
+        }
+
+        // Search toggle
+        if (elements.searchToggleBtn) {
+            elements.searchToggleBtn.addEventListener("click", () => {
+                const isHidden = elements.searchWrapper.style.display === "none";
+                elements.searchWrapper.style.display = isHidden ? "block" : "none";
+                if (isHidden) elements.conversationSearch.focus();
+            });
+        }
+        if (elements.railSearchBtn) {
+            elements.railSearchBtn.addEventListener("click", () => {
+                elements.sidebar.classList.remove("is-collapsed");
+                elements.chatScreen.classList.remove("has-collapsed-sidebar");
+                elements.searchWrapper.style.display = "block";
+                elements.conversationSearch.focus();
+            });
+        }
 
         // Image attach
         elements.attachImageBtn.addEventListener("click", () => elements.imageFileInput.click());
@@ -162,6 +204,17 @@
         // Close menus
         document.addEventListener("click", (e) => {
             if (!e.target.closest(".conversation-item__actions")) closeAllMenus();
+        });
+
+        // Password show/hide toggles
+        document.querySelectorAll(".pwd-toggle").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const input = btn.closest(".password-wrapper").querySelector("input");
+                const isHidden = input.type === "password";
+                input.type = isHidden ? "text" : "password";
+                btn.querySelector(".eye-icon").style.display = isHidden ? "none" : "";
+                btn.querySelector(".eye-off-icon").style.display = isHidden ? "" : "none";
+            });
         });
     }
 
@@ -365,15 +418,19 @@
     }
 
     // ─── Conversations ────────────────────────────────
-    async function onNewChat() {
-        try {
-            clearBox(elements.chatMessage);
-            const conversation = await createConversationForUser("New chat");
-            await setActiveConversation(conversation.id);
-            elements.messageInput.focus();
-        } catch (error) {
-            showBox(elements.chatMessage, error.message, "error");
-        }
+    function onNewChat() {
+        clearBox(elements.chatMessage);
+
+        // Reset state so the next sent message creates the conversation 
+        // with the user's first prompt as the title.
+        state.activeConversation = null;
+        state.messages = [];
+
+        renderConversations(); // Removes active highlight
+        renderMessages();      // Clears chat screen
+        updateChatHeader();    // Shows "Where should we begin?"
+
+        elements.messageInput.focus();
     }
 
     function onConversationSearch() {
@@ -438,6 +495,23 @@
             if (state.activeConversation && state.activeConversation.id === conversationId) {
                 state.activeConversation = updated;
                 updateChatHeader();
+            }
+            renderConversations();
+        } catch (error) {
+            showBox(elements.chatMessage, error.message, "error");
+        }
+    }
+
+    async function onTogglePinConversation(conversationId) {
+        const conversation = state.conversations.find((c) => c.id === conversationId);
+        if (!conversation) return;
+        try {
+            clearBox(elements.chatMessage);
+            const isPinned = !!conversation.is_pinned;
+            const updated = await window.ChatStackAPI.updateConversation(state.accessToken, conversationId, { is_pinned: !isPinned });
+            replaceConversationInState(updated);
+            if (state.activeConversation && state.activeConversation.id === conversationId) {
+                state.activeConversation = updated;
             }
             renderConversations();
         } catch (error) {
@@ -551,8 +625,10 @@
     function renderConversations() {
         const list = state.filteredConversations;
         elements.conversationList.innerHTML = "";
+        elements.pinnedConversationList.innerHTML = "";
 
         if (!list.length) {
+            elements.pinnedSection.style.display = "none";
             const empty = document.createElement("div");
             empty.className = "status-box";
             empty.style.fontSize = "13px";
@@ -561,7 +637,12 @@
             return;
         }
 
-        list.forEach((conversation) => {
+        const pinned = list.filter(c => c.is_pinned);
+        const unpinned = list.filter(c => !c.is_pinned);
+
+        elements.pinnedSection.style.display = pinned.length > 0 ? "block" : "none";
+
+        const createItem = (conversation) => {
             const item = document.createElement("div");
             item.className = `conversation-item${state.activeConversation && state.activeConversation.id === conversation.id ? " is-active" : ""}`;
 
@@ -599,11 +680,21 @@
                 const renameItem = document.createElement("button");
                 renameItem.type = "button";
                 renameItem.className = "conv-menu-item";
-                renameItem.innerHTML = `<span class="conv-menu-item__icon">&#9998;</span> Rename`;
+                renameItem.textContent = "Rename";
                 renameItem.addEventListener("click", async (e) => {
                     e.stopPropagation();
                     closeAllMenus();
                     await onRenameConversation(conversation.id);
+                });
+
+                const pinItem = document.createElement("button");
+                pinItem.type = "button";
+                pinItem.className = "conv-menu-item";
+                pinItem.textContent = conversation.is_pinned ? "Unpin" : "Pin";
+                pinItem.addEventListener("click", async (e) => {
+                    e.stopPropagation();
+                    closeAllMenus();
+                    await onTogglePinConversation(conversation.id);
                 });
 
                 const separator = document.createElement("div");
@@ -612,14 +703,14 @@
                 const deleteItem = document.createElement("button");
                 deleteItem.type = "button";
                 deleteItem.className = "conv-menu-item conv-menu-item--danger";
-                deleteItem.innerHTML = `<span class="conv-menu-item__icon">&#128465;</span> Delete`;
+                deleteItem.textContent = "Delete";
                 deleteItem.addEventListener("click", async (e) => {
                     e.stopPropagation();
                     closeAllMenus();
                     await onDeleteConversation(conversation.id);
                 });
 
-                dropdown.append(renameItem, separator, deleteItem);
+                dropdown.append(pinItem, renameItem, separator, deleteItem);
 
                 const rect = trigger.getBoundingClientRect();
                 dropdown.style.top = `${rect.bottom + 6}px`;
@@ -631,8 +722,11 @@
 
             actions.appendChild(trigger);
             item.append(button, actions);
-            elements.conversationList.appendChild(item);
-        });
+            return item;
+        };
+
+        pinned.forEach(c => elements.pinnedConversationList.appendChild(createItem(c)));
+        unpinned.forEach(c => elements.conversationList.appendChild(createItem(c)));
     }
 
     function renderMessages() {
@@ -750,6 +844,9 @@
         elements.sidebarUsername.textContent = username;
         elements.sidebarEmail.textContent = email;
         elements.userAvatar.textContent = username.charAt(0).toUpperCase();
+        elements.railUserAvatar.textContent = username.charAt(0).toUpperCase();
+        elements.railUserAvatar.title = email ? `${username} (${email})` : username;
+        elements.railUserAvatar.setAttribute("aria-label", `User profile: ${username}`);
     }
 
     // ─── Screens ──────────────────────────────────────

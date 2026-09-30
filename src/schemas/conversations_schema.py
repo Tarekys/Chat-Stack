@@ -5,6 +5,7 @@ import uuid
 
 class ConversationBase(BaseModel):
     title: Optional[str] = None
+    is_pinned: Optional[bool] = None
 
 
 class ConversationCreate(ConversationBase):
@@ -13,6 +14,7 @@ class ConversationCreate(ConversationBase):
 class ConversationRead(ConversationBase):
     id: int
     user_id: uuid.UUID
+    is_pinned: bool
     is_deleted: bool
     summary: Optional[str] = None
     prompt_tokens: int = 0
@@ -26,3 +28,4 @@ class ConversationRead(ConversationBase):
 
 class ConversationUpdate(BaseModel):
     title: Optional[str] = None
+    is_pinned: Optional[bool] = None
